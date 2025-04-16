@@ -48,7 +48,7 @@ if st.button("Find My Free Time"):
                 }
                 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
                 flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-                creds = flow.run_console()
+                creds = flow.run_local_server(open_browser=False, port=0)
                 st.session_state.creds = creds
             else:
                 creds = st.session_state.creds
