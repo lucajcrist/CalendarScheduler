@@ -58,8 +58,7 @@ st.info("✅ Ready to fetch your calendar. Click the button below.")
 # --- Trigger scheduler ---
 if st.button("Find My Free Time"):
     with st.spinner("Checking your calendar..."):
-        try:            else:
-                creds = st.session_state.creds
+        try:
 
             service = build('calendar', 'v3', credentials=creds)
             if "busy_blocks" not in st.session_state:
@@ -92,3 +91,4 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
