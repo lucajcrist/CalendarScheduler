@@ -57,7 +57,7 @@ if "creds" not in st.session_state:
 else:
     creds = st.session_state.creds
 
-service = build('calendar', 'v3', credentials=creds)
+# Only build once after login
 st.info("✅ Ready to fetch your calendar. Click the button below.")
 
 
@@ -97,4 +97,3 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
-
