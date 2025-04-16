@@ -54,7 +54,11 @@ if st.button("Find My Free Time"):
                 creds = st.session_state.creds
 
             service = build('calendar', 'v3', credentials=creds)
-            busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
+            if "busy_blocks" not in st.session_state:
+                busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
+                st.session_state.busy_blocks = busy_blocks
+            else:
+                busy_blocks = st.session_state.busy_blocks
             free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
 
             if not free_windows:
