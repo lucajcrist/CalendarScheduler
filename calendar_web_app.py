@@ -6,6 +6,7 @@ import pytz
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import json
+import time
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
@@ -13,6 +14,7 @@ st.title("📅 Personal Calendar Availability Checker")
 # Cache the service object
 @st.cache_resource
 def get_calendar_service():
+    start_time = time.time()
     secrets = st.secrets["google"]
     credentials_info = {
         "installed": {
@@ -27,7 +29,9 @@ def get_calendar_service():
     }
     flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
     creds = flow.run_console()
-    return build('calendar', 'v3', credentials=creds)
+    service = build('calendar', 'v3', credentials=creds)
+    st.write(f"⏱️ Service initialization took: {time.time() - start_time:.2f} seconds")
+    return service
 
 # Cache timezone list
 @st.cache_data
@@ -55,9 +59,24 @@ buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 1
 if st.button("Find My Free Time"):
     with st.spinner("Checking your calendar..."):
         try:
+            total_start = time.time()
+            
+            # Get calendar service
+            service_start = time.time()
             service = get_calendar_service()
+            st.write(f"⏱️ Getting calendar service took: {time.time() - service_start:.2f} seconds")
+            
+            # Get busy times
+            busy_start = time.time()
             busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
+            st.write(f"⏱️ Getting busy times took: {time.time() - busy_start:.2f} seconds")
+            
+            # Find free windows
+            free_start = time.time()
             free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
+            st.write(f"⏱️ Finding free windows took: {time.time() - free_start:.2f} seconds")
+            
+            st.write(f"⏱️ Total operation took: {time.time() - total_start:.2f} seconds")
 
             if not free_windows:
                 st.warning("No free time blocks found with the selected settings.")
@@ -69,3 +88,4 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
