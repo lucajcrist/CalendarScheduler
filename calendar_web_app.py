@@ -7,6 +7,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import json
 import time
+import os
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
@@ -27,10 +28,26 @@ def get_calendar_service():
             "redirect_uris": secrets.redirect_uris
         }
     }
+    
+    # Try to use existing token first
+    if os.path.exists('token.json'):
+        from google.oauth2.credentials import Credentials
+        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/calendar.readonly'])
+        if creds and creds.valid:
+            service = build('calendar', 'v3', credentials=creds)
+            st.write(f"⏱️ Service initialization (cached) took: {time.time() - start_time:.2f} seconds")
+            return service
+    
+    # If no valid token, do OAuth flow
     flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-    creds = flow.run_console()
+    creds = flow.run_local_server(port=0)
+    
+    # Save the token for future use
+    with open('token.json', 'w') as token:
+        token.write(creds.to_json())
+    
     service = build('calendar', 'v3', credentials=creds)
-    st.write(f"⏱️ Service initialization took: {time.time() - start_time:.2f} seconds")
+    st.write(f"⏱️ Service initialization (new) took: {time.time() - start_time:.2f} seconds")
     return service
 
 # Cache timezone list
