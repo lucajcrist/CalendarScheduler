@@ -45,7 +45,9 @@ if st.button("Find My Free Time"):
                 }
             }
             flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-            creds = flow.run_console()
+            import os
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+creds = flow.run_local_server(open_browser=False, port=8501)
 
             service = build('calendar', 'v3', credentials=creds)
             busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
@@ -61,4 +63,3 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
-
