@@ -24,6 +24,35 @@ with col2:
 min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
 buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
 
+# --- Pre-load Google Credentials ---
+if "creds" not in st.session_state:
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from googleapiclient.discovery import build
+    import json
+    import os
+
+    secrets = st.secrets["google"]
+    credentials_info = {
+        "installed": {
+            "client_id": secrets.client_id,
+            "project_id": secrets.project_id,
+            "auth_uri": secrets.auth_uri,
+            "token_uri": secrets.token_uri,
+            "auth_provider_x509_cert_url": secrets.auth_provider_x509_cert_url,
+            "client_secret": secrets.client_secret,
+            "redirect_uris": secrets.redirect_uris
+        }
+    }
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+    flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
+    creds = flow.run_local_server(open_browser=False, port=0)
+    st.session_state.creds = creds
+    st.success("🔐 Successfully signed in to Google Calendar!")
+else:
+    creds = st.session_state.creds
+
+service = build('calendar', 'v3', credentials=creds)
+
 # --- Trigger scheduler ---
 if st.button("Find My Free Time"):
     with st.spinner("Checking your calendar..."):
@@ -84,5 +113,6 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
 
 
