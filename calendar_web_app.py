@@ -56,10 +56,10 @@ if st.button("Find My Free Time"):
             service = build('calendar', 'v3', credentials=creds)
             if "busy_blocks" not in st.session_state:
                 from datetime import datetime
-            now = datetime.now(local_tz)
-            start_of_week = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_of_week = start_of_week + timedelta(days=5)
-            busy_blocks = get_busy_times(service, local_tz, buffer_minutes, start=start_of_week, end=end_of_week)
+                now = datetime.now(local_tz)
+                start_of_week = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_week = start_of_week + timedelta(days=5)
+                busy_blocks = get_busy_times(service, local_tz, buffer_minutes, start=start_of_week, end=end_of_week)
                 st.session_state.busy_blocks = busy_blocks
             else:
                 busy_blocks = st.session_state.busy_blocks
