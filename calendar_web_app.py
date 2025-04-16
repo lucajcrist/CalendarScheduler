@@ -9,20 +9,45 @@ from googleapiclient.discovery import build
 import json
 import time
 import os
+from google.oauth2 import service_account
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
 
-# Initialize session state for credentials
-if 'creds' not in st.session_state:
-    st.session_state.creds = None
+# Initialize session state for service
+if 'service' not in st.session_state:
+    st.session_state.service = None
 
 # Cache the service object
 @st.cache_resource
 def get_calendar_service():
-    if st.session_state.creds and st.session_state.creds.valid:
-        return build('calendar', 'v3', credentials=st.session_state.creds)
-    return None
+    try:
+        # Get credentials from Streamlit secrets
+        credentials_dict = {
+            "type": "service_account",
+            "project_id": st.secrets["google"]["project_id"],
+            "private_key_id": st.secrets["google"]["private_key_id"],
+            "private_key": st.secrets["google"]["private_key"],
+            "client_email": st.secrets["google"]["client_email"],
+            "client_id": st.secrets["google"]["client_id"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
+        }
+        
+        # Create credentials
+        credentials = service_account.Credentials.from_service_account_info(
+            credentials_dict,
+            scopes=['https://www.googleapis.com/auth/calendar.readonly']
+        )
+        
+        # Create service
+        service = build('calendar', 'v3', credentials=credentials)
+        return service
+    except Exception as e:
+        st.error(f"Error creating calendar service: {str(e)}")
+        return None
 
 # Cache timezone list
 @st.cache_data
@@ -46,43 +71,20 @@ with col2:
 min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
 buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
 
-# --- Authentication ---
-if not st.session_state.creds or not st.session_state.creds.valid:
-    st.info("Please authenticate with Google Calendar to continue.")
-    if st.button("Authenticate"):
-        secrets = st.secrets["google"]
-        flow = InstalledAppFlow.from_client_config(
-            {
-                "installed": {
-                    "client_id": secrets.client_id,
-                    "project_id": secrets.project_id,
-                    "auth_uri": secrets.auth_uri,
-                    "token_uri": secrets.token_uri,
-                    "auth_provider_x509_cert_url": secrets.auth_provider_x509_cert_url,
-                    "client_secret": secrets.client_secret,
-                    "redirect_uris": secrets.redirect_uris
-                }
-            },
-            ['https://www.googleapis.com/auth/calendar.readonly']
-        )
-        st.session_state.creds = flow.run_local_server(port=0)
-        st.experimental_rerun()
+# --- Initialize service ---
+if st.session_state.service is None:
+    st.session_state.service = get_calendar_service()
 
 # --- Trigger scheduler ---
-if st.session_state.creds and st.session_state.creds.valid:
+if st.session_state.service:
     if st.button("Find My Free Time"):
         with st.spinner("Checking your calendar..."):
             try:
                 total_start = time.time()
                 
-                # Get calendar service
-                service_start = time.time()
-                service = get_calendar_service()
-                st.write(f"⏱️ Getting calendar service took: {time.time() - service_start:.2f} seconds")
-                
                 # Get busy times
                 busy_start = time.time()
-                busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
+                busy_blocks = get_busy_times(st.session_state.service, local_tz, buffer_minutes)
                 st.write(f"⏱️ Getting busy times took: {time.time() - busy_start:.2f} seconds")
                 
                 # Find free windows
@@ -102,5 +104,7 @@ if st.session_state.creds and st.session_state.creds.valid:
                             st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+else:
+    st.error("Calendar service not initialized. Please check your credentials.")
 
 
