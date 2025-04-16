@@ -45,9 +45,15 @@ if "creds" not in st.session_state:
     }
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
     flow = InstalledAppFlow.from_client_config(credentials_info, ["https://www.googleapis.com/auth/calendar.readonly"])
-    creds = flow.run_local_server(open_browser=False, port=0)
-    st.session_state.creds = creds
-    st.success("🔐 Successfully signed in to Google Calendar!")
+    auth_url, _ = flow.authorization_url(prompt='consent')
+    st.markdown(f"[Click here to authorize with Google Calendar]({auth_url})")
+
+    auth_code = st.text_input("Paste the authorization code from Google here:")
+    if auth_code:
+        flow.fetch_token(code=auth_code)
+        creds = flow.credentials
+        st.session_state.creds = creds
+        st.success("🔐 Successfully signed in to Google Calendar!")
 else:
     creds = st.session_state.creds
 
