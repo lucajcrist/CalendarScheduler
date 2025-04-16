@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import time as dtime, timedelta
-from calendar_scheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
+from CalendarScheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
 from dateutil import tz
 import pytz
 
