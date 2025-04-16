@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import time as dtime, timedelta
-from CalendarScheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
+from calendar_scheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
 from dateutil import tz
 import pytz
 
@@ -45,7 +45,7 @@ if st.button("Find My Free Time"):
                 }
             }
             flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
 
             service = build('calendar', 'v3', credentials=creds)
             busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
@@ -61,3 +61,4 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
