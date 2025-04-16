@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import time as dtime, timedelta
-from CalendarScheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
+from calendar_scheduler import get_user_preferences, authenticate, get_busy_times, find_free_windows, print_schedule
 from dateutil import tz
 import pytz
 
@@ -31,6 +31,7 @@ if st.button("Find My Free Time"):
             from google_auth_oauthlib.flow import InstalledAppFlow
             from googleapiclient.discovery import build
             import json
+import os
 
             secrets = st.secrets["google"]
             credentials_info = {
@@ -44,10 +45,9 @@ if st.button("Find My Free Time"):
                     "redirect_uris": secrets.redirect_uris
                 }
             }
+            os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
             flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-            import os
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-creds = flow.run_local_server(open_browser=False, port=8501)
+            creds = flow.run_local_server(open_browser=False, port=8501)
 
             service = build('calendar', 'v3', credentials=creds)
             busy_blocks = get_busy_times(service, local_tz, buffer_minutes)
