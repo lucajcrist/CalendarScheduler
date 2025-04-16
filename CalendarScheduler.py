@@ -9,6 +9,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import time
+import functools
 
 # --- Google Calendar API scope ---
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -92,7 +93,8 @@ def authenticate():
             token.write(creds.to_json())
     return creds
 
-# --- Get busy times from calendar ---
+# Cache the busy times results
+@functools.lru_cache(maxsize=1)
 def get_busy_times(service, local_tz, buffer_minutes):
     start_time = time.time()
     now = datetime.now(local_tz)
@@ -103,27 +105,31 @@ def get_busy_times(service, local_tz, buffer_minutes):
     start_utc = start_of_week.astimezone(tz.UTC)
     end_utc = end_of_week.astimezone(tz.UTC)
 
+    # Get events for the week
     events_result = service.events().list(
         calendarId='primary',
         timeMin=start_utc.isoformat(),
         timeMax=end_utc.isoformat(),
         singleEvents=True,
         orderBy='startTime',
-        maxResults=100  # Limit results to improve performance
+        maxResults=50  # Reduced from 100 to improve performance
     ).execute()
 
     events = events_result.get('items', [])
     busy_blocks = []
     buffer = timedelta(minutes=buffer_minutes)
 
-    for event in events:
-        start = event['start'].get('dateTime')
-        end = event['end'].get('dateTime')
-        if start and end:
-            # Parse once and convert to local timezone
-            start_dt = parser.isoparse(start).astimezone(local_tz)
-            end_dt = parser.isoparse(end).astimezone(local_tz)
-            busy_blocks.append((start_dt - buffer, end_dt + buffer))
+    # Process events in batches
+    batch_size = 10
+    for i in range(0, len(events), batch_size):
+        batch = events[i:i + batch_size]
+        for event in batch:
+            start = event['start'].get('dateTime')
+            end = event['end'].get('dateTime')
+            if start and end:
+                start_dt = parser.isoparse(start).astimezone(local_tz)
+                end_dt = parser.isoparse(end).astimezone(local_tz)
+                busy_blocks.append((start_dt - buffer, end_dt + buffer))
 
     busy_blocks.sort()
     print(f"⏱️ get_busy_times took: {time.time() - start_time:.2f} seconds")
@@ -142,7 +148,8 @@ def merge_blocks(blocks):
             merged.append((start, end))
     return merged
 
-# --- Find free windows ---
+# Cache the free windows results
+@functools.lru_cache(maxsize=1)
 def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
     start_time = time.time()
     free_windows = []
@@ -150,6 +157,7 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
     busy_blocks = merge_blocks(busy_blocks)
     min_duration = timedelta(minutes=min_minutes)
 
+    # Process one day at a time
     for day_offset in range(5):  # Mon to Fri
         day = (now + timedelta(days=day_offset - now.weekday())).date()
         start = datetime.combine(day, work_start, tzinfo=local_tz)
@@ -157,7 +165,10 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
         current = start
         day_windows = []
 
-        for b_start, b_end in busy_blocks:
+        # Filter busy blocks for this day
+        day_busy_blocks = [(s, e) for s, e in busy_blocks if s.date() == day or e.date() == day]
+        
+        for b_start, b_end in day_busy_blocks:
             if b_end <= start or b_start >= end:
                 continue
             b_start = max(b_start, start)
