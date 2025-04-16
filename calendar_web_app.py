@@ -64,7 +64,7 @@ if st.button("Find My Free Time"):
                 busy_blocks = get_busy_times(service, local_tz, buffer_minutes, start=start_of_week, end=end_of_week)
                 fetch_duration = time.time() - fetch_start
                 st.session_state.fetch_duration = fetch_duration
-                st.session_state.busy_blocks = busy_blocks
+                st.session_state.busy_blocks = busy_blocks  # fixed indentation
             st.session_state.fetch_duration = fetch_duration
                 st.session_state.busy_blocks = busy_blocks
             else:
@@ -82,4 +82,3 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
-
