@@ -63,11 +63,13 @@ if st.button("Find My Free Time"):
                 fetch_start = time.time()
                 busy_blocks = get_busy_times(service, local_tz, buffer_minutes, start=start_of_week, end=end_of_week)
                 fetch_duration = time.time() - fetch_start
+                st.session_state.fetch_duration = fetch_duration
+                st.session_state.busy_blocks = busy_blocks
             st.session_state.fetch_duration = fetch_duration
                 st.session_state.busy_blocks = busy_blocks
             else:
-            busy_blocks = st.session_state.busy_blocks
-        st.write(f"⏱️ Calendar data fetched in {st.session_state.fetch_duration:.2f} seconds")
+                busy_blocks = st.session_state.busy_blocks
+                st.write(f"⏱️ Calendar data fetched in {st.session_state.fetch_duration:.2f} seconds")
             free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
 
             if not free_windows:
