@@ -48,7 +48,7 @@ if st.button("Find My Free Time"):
                 }
                 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
                 flow = InstalledAppFlow.from_client_config(credentials_info, ['https://www.googleapis.com/auth/calendar.readonly'])
-                creds = flow.run_local_server(open_browser=False, port=0)
+                creds = flow.run_console()
                 st.session_state.creds = creds
             else:
                 creds = st.session_state.creds
@@ -84,4 +84,5 @@ if st.button("Find My Free Time"):
                         st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
 
