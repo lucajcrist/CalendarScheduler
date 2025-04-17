@@ -100,7 +100,7 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes):
     # Get events for the week
     try:
         events_result = service.events().list(
-            calendarId=calendar_id,  # Use the provided calendar ID
+            calendarId=calendar_id,
             timeMin=start_utc.isoformat(),
             timeMax=end_utc.isoformat(),
             singleEvents=True,
@@ -115,6 +115,17 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes):
         buffer = timedelta(minutes=buffer_minutes)
 
         for event in events:
+            # Skip events marked as 'transparent' (free/busy)
+            if event.get('transparency') == 'transparent':
+                continue
+                
+            # Skip declined events
+            if event.get('attendees'):
+                my_response = next((a.get('responseStatus') for a in event['attendees'] 
+                                 if a.get('self', False)), None)
+                if my_response == 'declined':
+                    continue
+
             # Handle both dateTime and date events
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
@@ -145,6 +156,7 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes):
                     print(f"Original start: {start} -> Local start: {start_dt}")
                     print(f"Original end: {end} -> Local end: {end_dt}")
                     
+                    # Add buffer time
                     busy_blocks.append((start_dt - buffer, end_dt + buffer))
                 except Exception as e:
                     print(f"Error processing event: {e}")
@@ -263,4 +275,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
