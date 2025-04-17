@@ -63,7 +63,7 @@ if st.session_state.service and not st.session_state.calendar_id:
             calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
             st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
             st.session_state.calendar_id = user_calendar_id
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"❌ Could not access your calendar: {str(e)}")
             st.info("Make sure you've shared your calendar with the service account.")
