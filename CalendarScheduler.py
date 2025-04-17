@@ -79,7 +79,7 @@ def get_user_preferences():
 
 # Cache the busy times results
 @functools.lru_cache(maxsize=1)
-def get_busy_times(service, local_tz, buffer_minutes):
+def get_busy_times(service, calendar_id, local_tz, buffer_minutes):
     start_time = time.time()
     now = datetime.now(local_tz)
     start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -100,7 +100,7 @@ def get_busy_times(service, local_tz, buffer_minutes):
     # Get events for the week
     try:
         events_result = service.events().list(
-            calendarId='primary',
+            calendarId=calendar_id,  # Use the provided calendar ID
             timeMin=start_utc.isoformat(),
             timeMax=end_utc.isoformat(),
             singleEvents=True,
@@ -238,10 +238,9 @@ def print_schedule(free_windows, min_minutes):
 # --- Main execution ---
 def main():
     local_tz, work_start, work_end, min_minutes, buffer_minutes = get_user_preferences()
-    service = build('calendar', 'v3', credentials=creds)
-    busy_blocks = get_busy_times(service, local_tz, buffer_minutes=buffer_minutes)
-    free_windows = find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes)
-    print_schedule(free_windows, min_minutes)
+    # Remove the creds reference since we're using service account
+    print("This script is meant to be imported, not run directly.")
+    print("Please use the Streamlit web app instead.")
 
 if __name__ == '__main__':
     main()
