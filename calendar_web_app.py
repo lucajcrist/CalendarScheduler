@@ -147,10 +147,30 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                     st.warning("No free time blocks found with the selected settings.")
                 else:
                     st.success("✅ Here are your available meeting times:")
+                    # Create a text area with formatted output
+                    formatted_output = []
                     for day, blocks in free_windows:
-                        st.subheader(day.strftime("%A, %B %d"))
+                        # Format date with ordinal (e.g., 16th)
+                        day_num = day.day
+                        suffix = 'th' if 11 <= day_num <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day_num % 10, 'th')
+                        date_str = f"{day.strftime('%A, %B %d')}{suffix}"
+                        
+                        # Format time blocks
+                        time_blocks = []
                         for start, end in blocks:
-                            st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
+                            # Format times in lowercase with 'am/pm'
+                            start_str = start.strftime('%-I:%M%p').lower()
+                            end_str = end.strftime('%-I:%M%p').lower()
+                            time_blocks.append(f"{start_str} to {end_str}")
+                        
+                        # Join date and times with colon
+                        formatted_output.append(f"{date_str}: {', '.join(time_blocks)}")
+                    
+                    # Join with newlines and display in a text area
+                    email_text = "\n".join(formatted_output)
+                    st.text_area("Copy and paste these times into your email:", 
+                               value=email_text,
+                               height=300)
             except Exception as e:
                 st.error(f"An error occurred: {e}")
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
