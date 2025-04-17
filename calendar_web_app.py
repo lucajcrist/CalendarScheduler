@@ -26,7 +26,7 @@ if st.session_state.show_tutorial:
     st.markdown("""
     ## Welcome to Calendar Scheduler
     
-    This app helps you share your available meeting times with others. Before you can use it, you need to share your calendar with our service account.
+    This app helps you share your available meeting times with others. **Before you can use it, you need to share your calendar with our service account.**
     
     ### Step-by-Step Setup Guide
     
@@ -49,7 +49,7 @@ if st.session_state.show_tutorial:
        - Choose your preferred permission level:
          - "See all event details" - Shows event titles and details
          - "See only free/busy" - Only shows when you're busy, not what you're doing
-       - Both options work equally well for finding your available times
+       - **Both options work equally well for finding your available times**
        - Click "Send"
     
     4. **Verify the Sharing**
@@ -62,7 +62,7 @@ if st.session_state.show_tutorial:
          1. Go to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
          2. Click on your calendar under "Settings for my calendars"
          3. Look for "Calendar ID" in the "Integrate calendar" section
-       - For most users, it's simply your email address
+       - **For most users, it's simply your email address**
     
     6. **Enter Your Calendar ID**
        - Enter your calendar ID in the field below
