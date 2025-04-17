@@ -7,7 +7,7 @@ import calendar
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
-import time
+import time as time_module
 import functools
 
 # --- Google Calendar API scope ---
@@ -80,7 +80,7 @@ def get_user_preferences():
 # Cache the busy times results
 @functools.lru_cache(maxsize=2)  # Increased cache size to handle both this week and next week
 def get_busy_times(service, calendar_id, local_tz, buffer_minutes, start_date=None, end_date=None):
-    start_time = time.time()
+    start_time = time_module.time()
     now = datetime.now(local_tz)
     
     # Use provided date range or default to this week and next week
@@ -220,7 +220,7 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, start_date=No
 
         busy_blocks.sort()
         print(f"Total busy blocks: {len(busy_blocks)}")
-        print(f"⏱️ get_busy_times took: {time.time() - start_time:.2f} seconds")
+        print(f"⏱️ get_busy_times took: {time_module.time() - start_time:.2f} seconds")
         return tuple(busy_blocks)
     except Exception as e:
         print(f"Error fetching events: {e}")
@@ -242,7 +242,7 @@ def merge_blocks(blocks):
 # Cache the free windows results
 @functools.lru_cache(maxsize=2)
 def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
-    start_time = time.time()
+    start_time = time_module.time()
     free_windows = []
     now = datetime.now(local_tz)
     busy_blocks = list(busy_blocks)  # Convert tuple back to list
@@ -355,7 +355,7 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
             if valid_windows:
                 free_windows.append((day, tuple(valid_windows)))
 
-    print(f"⏱️ find_free_windows took: {time.time() - start_time:.2f} seconds")
+    print(f"⏱️ find_free_windows took: {time_module.time() - start_time:.2f} seconds")
     return tuple(free_windows)
 
 # --- Format date and time strings ---
