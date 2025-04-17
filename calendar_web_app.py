@@ -50,12 +50,40 @@ def get_calendar_service():
         # Get list of calendars
         try:
             st.write("Fetching available calendars...")
+            st.write(f"Using service account: {credentials_dict['client_email']}")
+            
+            # Test if we can access the API
+            try:
+                st.write("Testing API access...")
+                test_result = service.calendarList().list().execute()
+                st.write("✅ Successfully connected to Calendar API")
+            except Exception as e:
+                st.error(f"❌ Failed to access Calendar API: {str(e)}")
+                return None
+            
+            # Get list of calendars
+            st.write("Fetching calendar list...")
             calendars = service.calendarList().list().execute()
             calendar_list = calendars.get('items', [])
             
             if not calendar_list:
-                st.error("No calendars found. Make sure you've shared your calendar with the service account.")
+                st.error("""
+                No calendars found. This could mean:
+                1. The service account doesn't have access to any calendars
+                2. The Calendar API isn't properly enabled
+                3. The service account permissions aren't set correctly
+                
+                Please verify:
+                1. You've shared your calendar with: """ + credentials_dict["client_email"] + """
+                2. The Calendar API is enabled in Google Cloud Console
+                3. The service account has the Editor role
+                """)
                 return None
+            
+            # Show all available calendars
+            st.write("Available calendars:")
+            for calendar in calendar_list:
+                st.write(f"- {calendar['summary']} (ID: {calendar['id']})")
             
             # Find the user's primary calendar
             for calendar in calendar_list:
@@ -66,12 +94,23 @@ def get_calendar_service():
                     break
             
             if not st.session_state.calendar_id:
-                st.error("Could not find your primary calendar. Make sure you've shared it with the service account.")
+                st.error("""
+                Could not find your primary calendar. Please:
+                1. Make sure you've shared your calendar with the service account
+                2. Check that the service account has Calendar API access
+                3. Try refreshing the page after sharing your calendar
+                """)
                 return None
                 
         except Exception as e:
             st.error(f"❌ Error accessing calendars: {str(e)}")
-            st.info("Make sure you've shared your calendar with the service account email: " + credentials_dict["client_email"])
+            st.info("""
+            Make sure:
+            1. The service account has Calendar API access in Google Cloud Console
+            2. Your calendar is shared with the service account email: """ + credentials_dict["client_email"] + """
+            3. You've given "See all event details" permission
+            """)
+            return None
         
         return service
     except Exception as e:
@@ -143,3 +182,4 @@ if st.session_state.service and st.session_state.calendar_id:
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
 else:
     st.error("Calendar service not initialized. Please check your credentials.")
+
