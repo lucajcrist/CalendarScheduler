@@ -10,11 +10,7 @@ import time
 import os
 from google.auth.transport.requests import Request
 
-st.set_page_config(page_title="Calendar Scheduler", layout="centered", initial_sidebar_state="collapsed", menu_items={
-    'Get Help': None,
-    'Report a bug': None,
-    'About': None
-})
+st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 
 # Initialize session state for service and calendar ID
 if 'service' not in st.session_state:
@@ -277,4 +273,3 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
-
