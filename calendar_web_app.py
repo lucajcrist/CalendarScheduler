@@ -39,10 +39,18 @@ def get_credentials():
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+            # Use the authorization URL flow instead of local server
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            st.markdown(f'Please go to this URL to authorize the application: {auth_url}')
+            code = st.text_input('Enter the authorization code:')
+            if code:
+                flow.fetch_token(code=code)
+                creds = flow.credentials
+                # Save the credentials for the next run
+                with open('token.json', 'w') as token:
+                    token.write(creds.to_json())
+            else:
+                st.stop()
     return creds
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
@@ -184,4 +192,3 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
