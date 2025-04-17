@@ -1,322 +1,183 @@
-from __future__ import print_function
-import os.path
-from datetime import datetime, timedelta, time
-from dateutil import parser, tz
+import streamlit as st
+from datetime import time as dtime, timedelta
+from CalendarScheduler import get_busy_times, find_free_windows
+from dateutil import tz
 import pytz
-import calendar
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
+import json
 import time
-import functools
+import os
+from google.auth.transport.requests import Request
 
-# --- Google Calendar API scope ---
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+st.set_page_config(page_title="Calendar Scheduler", layout="centered")
+st.title("📅 Personal Calendar Availability Checker")
 
-# --- Timezone alias mapping ---
-TIMEZONE_ALIASES = {
-    "est": "US/Eastern",
-    "eastern": "US/Eastern",
-    "edt": "US/Eastern",
-    "cst": "US/Central",
-    "central": "US/Central",
-    "mst": "US/Mountain",
-    "mountain": "US/Mountain",
-    "pst": "US/Pacific",
-    "pacific": "US/Pacific",
-    "pt": "US/Pacific",
-    "gmt": "Etc/GMT",
-    "utc": "UTC"
-}
+# Initialize session state for service and calendar ID
+if 'service' not in st.session_state:
+    st.session_state.service = None
+if 'calendar_id' not in st.session_state:
+    st.session_state.calendar_id = None
 
-# --- Get timezone from user input ---
-def get_timezone_from_input():
-    user_input = input("What time zone are you in? (e.g., EST, PST, Eastern): ").strip().lower()
-    if user_input in TIMEZONE_ALIASES:
-        tz_name = TIMEZONE_ALIASES[user_input]
-    else:
-        print("Unknown or unsupported timezone. Defaulting to US/Eastern.")
-        tz_name = "US/Eastern"
-    return pytz.timezone(tz_name)
-
-# --- User preferences setup ---
-def get_user_preferences():
-    print("📅 Let's set up your personal scheduling preferences.")
-
-    local_tz = get_timezone_from_input()
-
-    def parse_time_input(label):
-        time_input = input(f"What time does your workday {label}? (e.g., 6, 7:00, 8:00AM, 7:00PM): ").strip().lower()
-        try:
-            aliases = {
-                "noon": "12:00pm",
-                "midnight": "12:00am",
-                "half past ": lambda x: f"{x}:30"
-            }
-            if time_input in aliases:
-                time_input = aliases[time_input]
-            elif time_input.startswith("half past"):
-                hour = time_input.replace("half past", "").strip()
-                time_input = f"{hour}:30"
-            elif time_input.isdigit() and len(time_input) <= 4:
-                time_input = time_input.zfill(4)
-                hour = int(time_input[:2])
-                minute = int(time_input[2:]) if len(time_input) > 2 else 0
-                return time(hour, minute)
-            parsed_time = parser.parse(time_input)
-            return time(parsed_time.hour, parsed_time.minute)
-        except:
-            print("Invalid time. Defaulting to 9:00 for start and 17:00 for end.")
-            return time(9, 0) if label == "start" else time(17, 0)
-        
-
-    start_time = parse_time_input("start")
-    end_time = parse_time_input("end")
-    event_length = int(input("What's the minimum length (in minutes) for a meeting? "))
-    buffer_minutes = int(input("How much buffer time (in minutes) do you want between meetings? "))
-
-    return local_tz, start_time, end_time, event_length, buffer_minutes
-
-# Cache the busy times results
-@functools.lru_cache(maxsize=1)
-def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_week=False):
-    start_time = time.time()
-    now = datetime.now(local_tz)
-    
-    # Calculate start and end of the week
-    if show_next_week:
-        start_of_week = (now - timedelta(days=now.weekday()) + timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        
-    end_of_week = start_of_week + timedelta(days=7)
-
-    print(f"Local timezone: {local_tz}")
-    print(f"Current time in local timezone: {now}")
-    print(f"Start of week in local timezone: {start_of_week}")
-    print(f"End of week in local timezone: {end_of_week}")
-
-    # Convert to UTC for API call
-    start_utc = start_of_week.astimezone(tz.UTC)
-    end_utc = end_of_week.astimezone(tz.UTC)
-
-    print(f"Start of week in UTC: {start_utc}")
-    print(f"End of week in UTC: {end_utc}")
-
-    # Get events for the week
+# Cache the service object
+@st.cache_resource
+def get_calendar_service():
     try:
-        events_result = service.events().list(
-            calendarId=calendar_id,
-            timeMin=start_utc.isoformat(),
-            timeMax=end_utc.isoformat(),
-            singleEvents=True,
-            orderBy='startTime',
-            maxResults=1000
-        ).execute()
-
-        events = events_result.get('items', [])
-        print(f"Found {len(events)} events in the calendar")
-        
-        busy_blocks = []
-        buffer = timedelta(minutes=buffer_minutes)
-
-        for event in events:
-            # Skip events marked as 'transparent' (free/busy)
-            if event.get('transparency') == 'transparent':
-                continue
-                
-            # Skip declined events
-            if event.get('attendees'):
-                my_response = next((a.get('responseStatus') for a in event['attendees'] 
-                                 if a.get('self', False)), None)
-                if my_response == 'declined':
-                    continue
-
-            # Handle both dateTime and date events
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            end = event['end'].get('dateTime', event['end'].get('date'))
+        # Get credentials from Streamlit secrets
+        try:
+            # Format private key with proper newlines
+            private_key = st.secrets["google"]["private_key"]
+            if "\\n" in private_key:
+                private_key = private_key.replace("\\n", "\n")
             
-            if start and end:
-                # Convert to datetime if it's a date
-                if 'T' not in start:
-                    start = f"{start}T00:00:00"
-                if 'T' not in end:
-                    end = f"{end}T23:59:59"
+            credentials_dict = {
+                "type": st.secrets["google"]["type"],
+                "project_id": st.secrets["google"]["project_id"],
+                "private_key_id": st.secrets["google"]["private_key_id"],
+                "private_key": private_key,
+                "client_email": st.secrets["google"]["client_email"],
+                "client_id": st.secrets["google"]["client_id"],
+                "auth_uri": st.secrets["google"]["auth_uri"],
+                "token_uri": st.secrets["google"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
+            }
+            
+        except Exception as e:
+            st.error(f"❌ Error reading credentials from secrets: {str(e)}")
+            st.error("Please check that all required fields are present in your secrets.toml file")
+            return None
+        
+        try:
+            # Create credentials
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict,
+                scopes=['https://www.googleapis.com/auth/calendar.readonly']
+            )
+            
+            # Test the credentials
+            credentials.refresh(Request())
                 
-                try:
-                    # Parse the datetime string
-                    start_dt = parser.isoparse(start)
-                    end_dt = parser.isoparse(end)
-                    
-                    # If the datetime doesn't have timezone info, assume it's in UTC
-                    if start_dt.tzinfo is None:
-                        start_dt = start_dt.replace(tzinfo=tz.UTC)
-                    if end_dt.tzinfo is None:
-                        end_dt = end_dt.replace(tzinfo=tz.UTC)
-                    
-                    # Convert to local timezone
-                    start_dt = start_dt.astimezone(local_tz)
-                    end_dt = end_dt.astimezone(local_tz)
-                    
-                    print(f"Event: {event.get('summary', 'No title')}")
-                    print(f"Original start: {start} -> Local start: {start_dt}")
-                    print(f"Original end: {end} -> Local end: {end_dt}")
-                    
-                    # Add buffer time
-                    busy_blocks.append((start_dt - buffer, end_dt + buffer))
-                except Exception as e:
-                    print(f"Error processing event: {e}")
-                    continue
-
-        busy_blocks.sort()
-        print(f"Total busy blocks: {len(busy_blocks)}")
-        print(f"⏱️ get_busy_times took: {time.time() - start_time:.2f} seconds")
-        return tuple(busy_blocks)
+        except Exception as e:
+            st.error(f"❌ Error creating credentials: {str(e)}")
+            st.error("Please check that your private key and other credentials are correctly formatted")
+            return None
+        
+        try:
+            # Create service
+            service = build('calendar', 'v3', credentials=credentials)
+            return service
+        except Exception as e:
+            st.error(f"❌ Error building calendar service: {str(e)}")
+            st.error("Please check that the Calendar API is enabled in your Google Cloud project")
+            return None
+            
     except Exception as e:
-        print(f"Error fetching events: {e}")
-        return tuple()
+        st.error(f"❌ Unexpected error initializing calendar service: {str(e)}")
+        return None
 
-# --- Merge overlapping busy blocks ---
-def merge_blocks(blocks):
-    if not blocks:
-        return []
-    merged = [blocks[0]]
-    for start, end in blocks[1:]:
-        last_start, last_end = merged[-1]
-        if start <= last_end:
-            merged[-1] = (last_start, max(last_end, end))
-        else:
-            merged.append((start, end))
-    return merged
+# Initialize service if not already initialized
+if st.session_state.service is None:
+    st.write("Initializing calendar service...")
+    service = get_calendar_service()
+    if service is not None:
+        st.session_state.service = service
+    else:
+        st.error("Failed to initialize calendar service. Please check the error messages above.")
+        st.stop()
 
-# Cache the free windows results
-@functools.lru_cache(maxsize=1)
-def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
-    start_time = time.time()
-    free_windows = []
-    now = datetime.now(local_tz)
-    busy_blocks = list(busy_blocks)  # Convert tuple back to list
-    busy_blocks = merge_blocks(busy_blocks)
-    min_duration = timedelta(minutes=min_minutes)
+# Get calendar ID if not set
+if st.session_state.service is not None and not st.session_state.calendar_id:
+    st.write("Please enter your calendar ID (usually your email address):")
+    user_calendar_id = st.text_input("Calendar ID")
+    
+    if user_calendar_id:
+        try:
+            calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
+            st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
+            st.session_state.calendar_id = user_calendar_id
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Could not access your calendar: {str(e)}")
+            st.info("Make sure you've shared your calendar with the service account.")
 
-    # Process one day at a time
-    for day_offset in range(5):  # Mon to Fri
-        day = (now + timedelta(days=day_offset - now.weekday())).date()
-        start = datetime.combine(day, work_start, tzinfo=local_tz)
-        end = datetime.combine(day, work_end, tzinfo=local_tz)
-        
-        # Skip past days
-        if day < now.date():
-            continue
-            
-        # For today, adjust start time to current time if it's later than work start
-        if day == now.date():
-            start = max(start, now)
-            # If we're past work hours for today, skip to next day
-            if start >= end:
-                continue
+# Cache timezone list
+@st.cache_data
+def get_timezone_list():
+    return list(pytz.all_timezones)
+
+# --- Timezone selector ---
+timezones = get_timezone_list()
+default_tz = "US/Eastern"
+timezone_label = st.selectbox("Choose your time zone:", options=[default_tz] + [tz for tz in timezones if tz != default_tz])
+local_tz = pytz.timezone(timezone_label)
+
+# --- Week selector ---
+show_next_week = st.checkbox("Show next week's availability")
+
+# --- Work hours ---
+col1, col2 = st.columns(2)
+with col1:
+    start_time = st.time_input("Workday starts at:", dtime(9, 0))
+with col2:
+    end_time = st.time_input("Workday ends at:", dtime(17, 0))
+
+# --- Meeting and buffer preferences ---
+min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
+buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
+
+# --- Trigger scheduler ---
+if st.session_state.service is not None and st.session_state.calendar_id:
+    if st.button("Find My Free Time"):
+        with st.spinner("Checking your calendar..."):
+            try:
+                total_start = time.time()
                 
-        current = start
-        day_windows = []
+                # Get busy times
+                busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, show_next_week)
+                
+                if len(busy_blocks) == 0:
+                    st.warning("No busy blocks found. Make sure:")
+                    st.write("1. Your calendar is shared with the service account")
+                    st.write("2. You have events in your calendar")
+                    st.write("3. The service account has proper permissions")
+                
+                # Find free windows
+                free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
 
-        # Filter busy blocks for this day
-        day_busy_blocks = [(s, e) for s, e in busy_blocks if s.date() == day or e.date() == day]
-        
-        # Sort busy blocks by start time
-        day_busy_blocks.sort(key=lambda x: x[0])
-        
-        # If no busy blocks for the day, add the entire workday as a free window
-        if not day_busy_blocks:
-            if (end - start) >= min_duration:
-                day_windows.append((start, end))
-        else:
-            # Process each busy block
-            for b_start, b_end in day_busy_blocks:
-                # Skip blocks that don't overlap with work hours
-                if b_end <= start or b_start >= end:
-                    continue
+                if not free_windows:
+                    st.warning("No free time blocks found with the selected settings.")
+                else:
+                    st.success("✅ Here are your available meeting times:")
+                    # Create a text area with formatted output
+                    formatted_output = []
+                    for day, blocks in free_windows:
+                        # Format date with ordinal (e.g., 16th)
+                        day_num = day.day
+                        suffix = 'th' if 11 <= day_num <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day_num % 10, 'th')
+                        date_str = f"{day.strftime('%A, %B %d')}{suffix}"
+                        
+                        # Format time blocks
+                        time_blocks = []
+                        for start, end in blocks:
+                            # Format times in lowercase with 'am/pm'
+                            start_str = start.strftime('%-I:%M%p').lower()
+                            end_str = end.strftime('%-I:%M%p').lower()
+                            time_blocks.append(f"{start_str} to {end_str}")
+                        
+                        # Join date and times
+                        formatted_output.append(f"• {date_str}: {', '.join(time_blocks)}")
                     
-                # Adjust block times to work hours
-                b_start = max(b_start, start)
-                b_end = min(b_end, end)
-                
-                # If there's a gap before this block
-                if b_start > current:
-                    free_start = current
-                    free_end = b_start
-                    # Only add if it's long enough and within work hours
-                    if (free_end - free_start) >= min_duration:
-                        day_windows.append((free_start, free_end))
-                
-                current = max(current, b_end)
-
-            # Check for free time after the last busy block
-            if current < end:
-                free_start = current
-                free_end = end
-                if (free_end - free_start) >= min_duration:
-                    day_windows.append((free_start, free_end))
-
-        # Filter out any invalid windows
-        valid_windows = []
-        for window_start, window_end in day_windows:
-            # Skip zero-duration windows
-            if window_start >= window_end:
-                continue
-                
-            # Skip windows that are too short
-            if (window_end - window_start) < min_duration:
-                continue
-                
-            # Ensure windows are within work hours
-            window_start = max(window_start, start)
-            window_end = min(window_end, end)
-            
-            # Skip if window is now too short after adjustment
-            if (window_end - window_start) < min_duration:
-                continue
-                
-            # Skip past time slots
-            if window_start < now:
-                continue
-                
-            # Round times to nearest 5 minutes
-            window_start = window_start.replace(minute=(window_start.minute // 5) * 5)
-            window_end = window_end.replace(minute=(window_end.minute // 5) * 5)
-            
-            valid_windows.append((window_start, window_end))
-
-        if valid_windows:
-            free_windows.append((day, tuple(valid_windows)))
-
-    print(f"⏱️ find_free_windows took: {time.time() - start_time:.2f} seconds")
-    return tuple(free_windows)
-
-# --- Format date and time strings ---
-def format_date(date_obj):
-    weekday = calendar.day_name[date_obj.weekday()]
-    month = calendar.month_name[date_obj.month]
-    day = date_obj.day
-    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-    return f"{weekday}, {month} {day}{suffix}"
-
-def format_time(dt):
-    return dt.strftime("%-I:%M%p").lower().replace(":00", "")
-
-# --- Print final schedule ---
-def print_schedule(free_windows, min_minutes):
-    print(f"\n✅ Free time blocks (≥{min_minutes} min, with custom buffer):\n")
-    for day, windows in free_windows:
-        date_str = format_date(day)
-        for start, end in windows:
-            print(f"{date_str}: {format_time(start)} to {format_time(end)}")
-
-# --- Main execution ---
-def main():
-    local_tz, work_start, work_end, min_minutes, buffer_minutes = get_user_preferences()
-    # Remove the creds reference since we're using service account
-    print("This script is meant to be imported, not run directly.")
-    print("Please use the Streamlit web app instead.")
-
-if __name__ == '__main__':
-    main()
+                    # Join with newlines and display in a text area
+                    email_text = "\n".join(formatted_output)
+                    st.text_area("Copy and paste these times into your email:", 
+                               value=email_text,
+                               height=300)
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
+else:
+    if st.session_state.service is None:
+        st.error("Calendar service not initialized. Please check your credentials.")
+    else:
+        st.info("Please enter your calendar ID above to continue.")
