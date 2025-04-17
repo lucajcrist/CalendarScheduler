@@ -12,9 +12,11 @@ import os
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
 
-# Initialize session state for service
+# Initialize session state for service and calendar ID
 if 'service' not in st.session_state:
     st.session_state.service = None
+if 'calendar_id' not in st.session_state:
+    st.session_state.calendar_id = None
 
 # Cache the service object
 @st.cache_resource
@@ -34,26 +36,46 @@ def get_calendar_service():
             "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
         }
         
+        st.write("Creating service account credentials...")
         # Create credentials
         credentials = service_account.Credentials.from_service_account_info(
             credentials_dict,
             scopes=['https://www.googleapis.com/auth/calendar.readonly']
         )
         
+        st.write("Building calendar service...")
         # Create service
         service = build('calendar', 'v3', credentials=credentials)
         
-        # Test calendar access
+        # Get list of calendars
         try:
-            calendar = service.calendars().get(calendarId='primary').execute()
-            st.write(f"Successfully connected to calendar: {calendar['summary']}")
+            st.write("Fetching available calendars...")
+            calendars = service.calendarList().list().execute()
+            calendar_list = calendars.get('items', [])
+            
+            if not calendar_list:
+                st.error("No calendars found. Make sure you've shared your calendar with the service account.")
+                return None
+            
+            # Find the user's primary calendar
+            for calendar in calendar_list:
+                if calendar.get('primary'):
+                    st.session_state.calendar_id = calendar['id']
+                    st.write(f"✅ Found your calendar: {calendar['summary']}")
+                    st.write(f"Calendar ID: {calendar['id']}")
+                    break
+            
+            if not st.session_state.calendar_id:
+                st.error("Could not find your primary calendar. Make sure you've shared it with the service account.")
+                return None
+                
         except Exception as e:
-            st.error(f"Error accessing calendar: {str(e)}")
+            st.error(f"❌ Error accessing calendars: {str(e)}")
             st.info("Make sure you've shared your calendar with the service account email: " + credentials_dict["client_email"])
         
         return service
     except Exception as e:
-        st.error(f"Error creating calendar service: {str(e)}")
+        st.error(f"❌ Error creating calendar service: {str(e)}")
         return None
 
 # Cache timezone list
@@ -83,7 +105,7 @@ if st.session_state.service is None:
     st.session_state.service = get_calendar_service()
 
 # --- Trigger scheduler ---
-if st.session_state.service:
+if st.session_state.service and st.session_state.calendar_id:
     if st.button("Find My Free Time"):
         with st.spinner("Checking your calendar..."):
             try:
@@ -91,9 +113,15 @@ if st.session_state.service:
                 
                 # Get busy times
                 busy_start = time.time()
-                busy_blocks = get_busy_times(st.session_state.service, local_tz, buffer_minutes)
+                busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes)
                 st.write(f"⏱️ Getting busy times took: {time.time() - busy_start:.2f} seconds")
                 st.write(f"Found {len(busy_blocks)} busy blocks")
+                
+                if len(busy_blocks) == 0:
+                    st.warning("No busy blocks found. Make sure:")
+                    st.write("1. Your calendar is shared with the service account")
+                    st.write("2. You have events in your calendar")
+                    st.write("3. The service account has proper permissions")
                 
                 # Find free windows
                 free_start = time.time()
@@ -115,4 +143,3 @@ if st.session_state.service:
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
 else:
     st.error("Calendar service not initialized. Please check your credentials.")
-
