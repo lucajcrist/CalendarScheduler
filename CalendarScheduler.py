@@ -133,7 +133,7 @@ def get_busy_times(service, local_tz, buffer_minutes):
 
     busy_blocks.sort()
     print(f"⏱️ get_busy_times took: {time.time() - start_time:.2f} seconds")
-    return busy_blocks
+    return tuple(busy_blocks)  # Convert list to tuple for caching
 
 # --- Merge overlapping busy blocks ---
 def merge_blocks(blocks):
@@ -154,6 +154,7 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
     start_time = time.time()
     free_windows = []
     now = datetime.now(local_tz)
+    busy_blocks = list(busy_blocks)  # Convert tuple back to list
     busy_blocks = merge_blocks(busy_blocks)
     min_duration = timedelta(minutes=min_minutes)
 
@@ -187,10 +188,10 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
                 day_windows.append((free_start, free_end))
 
         if day_windows:
-            free_windows.append((day, day_windows))
+            free_windows.append((day, tuple(day_windows)))  # Convert day_windows to tuple
 
     print(f"⏱️ find_free_windows took: {time.time() - start_time:.2f} seconds")
-    return free_windows
+    return tuple(free_windows)  # Convert list to tuple for caching
 
 # --- Format date and time strings ---
 def format_date(date_obj):
