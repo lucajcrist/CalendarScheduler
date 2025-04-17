@@ -25,37 +25,24 @@ if 'show_tutorial' not in st.session_state:
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 def get_credentials():
-    """Get valid user credentials from storage or prompt user to log in."""
-    if st.session_state.creds and st.session_state.creds.valid:
-        return st.session_state.creds
-    
-    # Load client secrets
-    try:
-        with open('credentials.json', 'r') as token:
-            client_config = json.load(token)
-    except Exception as e:
-        st.error("❌ Error loading credentials file. Please check that credentials.json exists.")
-        return None
-
-    # Create flow
-    flow = InstalledAppFlow.from_client_config(
-        client_config,
-        SCOPES,
-        redirect_uri='urn:ietf:wg:oauth:2.0:oob'
-    )
-    
-    # Get credentials
-    try:
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        st.markdown(f'Please go to this URL to authorize the application: {auth_url}')
-        code = st.text_input('Enter the authorization code:')
-        if code:
-            flow.fetch_token(code=code)
-            st.session_state.creds = flow.credentials
-            return st.session_state.creds
-    except Exception as e:
-        st.error(f"❌ Error during authentication: {str(e)}")
-        return None
+    """Gets valid user credentials from storage or initiates OAuth flow."""
+    creds = None
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first time.
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    return creds
 
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial:
@@ -82,8 +69,14 @@ if st.session_state.show_tutorial:
     """)
     
     if st.button("Sign in with Google"):
-        st.session_state.show_tutorial = False
-        st.rerun()
+        try:
+            creds = get_credentials()
+            service = build('calendar', 'v3', credentials=creds)
+            st.session_state['service'] = service
+            st.session_state['calendar_id'] = 'primary'  # Use primary calendar
+            st.success("Successfully connected to your calendar!")
+        except Exception as e:
+            st.error(f"Error connecting to Google Calendar: {str(e)}")
     st.stop()
 
 # Main app interface
@@ -180,4 +173,3 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
