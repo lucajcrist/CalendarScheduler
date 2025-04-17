@@ -156,14 +156,13 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
 # Main app interface
 st.title("📅 Personal Calendar Availability Checker")
 
-# Get credentials
+# Get credentials and initialize service
 if not st.session_state.authenticated:
     creds = get_credentials()
     if creds:
         st.session_state.creds = creds
         st.session_state.authenticated = True
-        service = build('calendar', 'v3', credentials=creds)
-        st.session_state.service = service
+        st.session_state.service = build('calendar', 'v3', credentials=creds)
         st.session_state.calendar_id = 'primary'
         st.rerun()
     else:
@@ -172,6 +171,12 @@ if not st.session_state.authenticated:
             st.session_state.show_tutorial = True
             st.rerun()
         st.stop()
+
+# Ensure service is available
+if not st.session_state.service:
+    st.error("Service not initialized. Please sign in again.")
+    st.session_state.authenticated = False
+    st.rerun()
 
 # Get user's primary calendar
 try:
@@ -210,7 +215,7 @@ if st.button("Find My Free Time"):
             total_start = time.time()
             
             # Get busy times for both weeks
-            busy_blocks = get_busy_times(service, st.session_state.calendar_id, local_tz, buffer_minutes, show_next_week=True)
+            busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, show_next_week=True)
             
             if len(busy_blocks) == 0:
                 st.warning("No busy blocks found. Make sure you have events in your calendar.")
