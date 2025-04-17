@@ -86,10 +86,19 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_wee
     # Calculate start and end of the week
     if show_next_week:
         # Start from next Monday
-        start_of_week = (now + timedelta(days=(7 - now.weekday()))).replace(hour=0, minute=0, second=0, microsecond=0)
+        days_until_next_monday = (7 - now.weekday()) % 7
+        if days_until_next_monday == 0:  # If today is Monday, add 7 days
+            days_until_next_monday = 7
+        start_of_week = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        print(f"Next week calculation:")
+        print(f"Today is {now.strftime('%A')}")
+        print(f"Days until next Monday: {days_until_next_monday}")
     else:
         # Start from this Monday
         start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        print(f"This week calculation:")
+        print(f"Today is {now.strftime('%A')}")
+        print(f"Days since Monday: {now.weekday()}")
         
     end_of_week = start_of_week + timedelta(days=7)
 
@@ -203,12 +212,22 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
 
     # Process one day at a time
     for day_offset in range(5):  # Mon to Fri
-        day = (now + timedelta(days=day_offset - now.weekday())).date()
+        # Calculate the day based on the first busy block's date
+        if busy_blocks:
+            first_busy_day = busy_blocks[0][0].date()
+            day = first_busy_day + timedelta(days=day_offset)
+        else:
+            # If no busy blocks, use current week
+            day = (now + timedelta(days=day_offset - now.weekday())).date()
+            
         start = datetime.combine(day, work_start, tzinfo=local_tz)
         end = datetime.combine(day, work_end, tzinfo=local_tz)
         
+        print(f"Processing day: {day.strftime('%A, %Y-%m-%d')}")
+        
         # Skip past days
         if day < now.date():
+            print(f"Skipping past day: {day}")
             continue
             
         # For today, adjust start time to current time if it's later than work start
@@ -216,6 +235,7 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
             start = max(start, now)
             # If we're past work hours for today, skip to next day
             if start >= end:
+                print(f"Skipping today as work hours have passed")
                 continue
                 
         current = start
@@ -322,4 +342,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
