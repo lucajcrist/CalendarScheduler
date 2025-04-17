@@ -156,6 +156,11 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
             5. Grant calendar access when prompted
             6. Copy the authorization code
             7. Paste it in the text box below
+            
+            **Important Notes:**
+            - The authorization code expires after 10 minutes
+            - If you see an error, try getting a new code by clicking the link again
+            - Make sure to copy the entire code without any extra spaces
             """)
             
             st.markdown(f'[Click here to authorize]({auth_url})')
@@ -164,6 +169,10 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
             code = st.text_input('Enter the authorization code:')
             if code:
                 try:
+                    # Clear any existing credentials
+                    if st.session_state.user_id:
+                        delete_credentials(st.session_state.user_id)
+                    
                     flow.fetch_token(code=code)
                     creds = flow.credentials
                     
@@ -187,8 +196,17 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
                     st.success(f"Successfully connected to {user_email}'s calendar!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error during authentication: {str(e)}")
-                    if "access_denied" in str(e):
+                    error_msg = str(e)
+                    if "invalid_grant" in error_msg:
+                        st.error("""
+                        The authorization code has expired or is invalid. Please:
+                        1. Click the authorization link again
+                        2. Get a new code
+                        3. Paste the new code in the text box
+                        
+                        Authorization codes expire after 10 minutes.
+                        """)
+                    elif "access_denied" in error_msg:
                         st.error("""
                         The app is currently in testing mode. To use it:
                         1. Go to the Google Cloud Console
@@ -196,6 +214,8 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
                         3. Add your email as a test user
                         4. Try signing in again
                         """)
+                    else:
+                        st.error(f"Error during authentication: {error_msg}")
                     st.stop()
             else:
                 st.stop()
@@ -337,4 +357,5 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
 
