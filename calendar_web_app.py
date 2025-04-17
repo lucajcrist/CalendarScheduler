@@ -8,6 +8,7 @@ from googleapiclient.discovery import build
 import json
 import time
 import os
+from google.auth.transport.requests import Request
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
@@ -24,11 +25,25 @@ def get_calendar_service():
     try:
         # Get credentials from Streamlit secrets
         try:
+            # Debug: Print available secrets
+            st.write("Available secrets:", list(st.secrets.keys()))
+            if "google" not in st.secrets:
+                st.error("❌ 'google' section not found in secrets.toml")
+                return None
+                
+            # Debug: Print available google secrets
+            st.write("Available google secrets:", list(st.secrets["google"].keys()))
+            
+            # Format private key with proper newlines
+            private_key = st.secrets["google"]["private_key"]
+            if "\\n" in private_key:
+                private_key = private_key.replace("\\n", "\n")
+            
             credentials_dict = {
                 "type": st.secrets["google"]["type"],
                 "project_id": st.secrets["google"]["project_id"],
                 "private_key_id": st.secrets["google"]["private_key_id"],
-                "private_key": st.secrets["google"]["private_key"],
+                "private_key": private_key,
                 "client_email": st.secrets["google"]["client_email"],
                 "client_id": st.secrets["google"]["client_id"],
                 "auth_uri": st.secrets["google"]["auth_uri"],
@@ -36,6 +51,10 @@ def get_calendar_service():
                 "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
                 "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
             }
+            
+            # Debug: Print credential types
+            st.write("Credential types:", {k: type(v) for k, v in credentials_dict.items()})
+            
         except Exception as e:
             st.error(f"❌ Error reading credentials from secrets: {str(e)}")
             st.error("Please check that all required fields are present in your secrets.toml file")
@@ -47,6 +66,15 @@ def get_calendar_service():
                 credentials_dict,
                 scopes=['https://www.googleapis.com/auth/calendar.readonly']
             )
+            
+            # Test the credentials
+            try:
+                credentials.refresh(Request())
+                st.write("✅ Credentials are valid")
+            except Exception as e:
+                st.error(f"❌ Credentials validation failed: {str(e)}")
+                return None
+                
         except Exception as e:
             st.error(f"❌ Error creating credentials: {str(e)}")
             st.error("Please check that your private key and other credentials are correctly formatted")
@@ -55,6 +83,15 @@ def get_calendar_service():
         try:
             # Create service
             service = build('calendar', 'v3', credentials=credentials)
+            
+            # Test the service
+            try:
+                service.calendars().get(calendarId='primary').execute()
+                st.write("✅ Calendar service is working")
+            except Exception as e:
+                st.error(f"❌ Calendar service test failed: {str(e)}")
+                return None
+                
             return service
         except Exception as e:
             st.error(f"❌ Error building calendar service: {str(e)}")
