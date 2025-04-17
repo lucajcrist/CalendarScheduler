@@ -25,15 +25,6 @@ def get_calendar_service():
     try:
         # Get credentials from Streamlit secrets
         try:
-            # Debug: Print available secrets
-            st.write("Available secrets:", list(st.secrets.keys()))
-            if "google" not in st.secrets:
-                st.error("❌ 'google' section not found in secrets.toml")
-                return None
-                
-            # Debug: Print available google secrets
-            st.write("Available google secrets:", list(st.secrets["google"].keys()))
-            
             # Format private key with proper newlines
             private_key = st.secrets["google"]["private_key"]
             if "\\n" in private_key:
@@ -52,9 +43,6 @@ def get_calendar_service():
                 "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
             }
             
-            # Debug: Print credential types
-            st.write("Credential types:", {k: type(v) for k, v in credentials_dict.items()})
-            
         except Exception as e:
             st.error(f"❌ Error reading credentials from secrets: {str(e)}")
             st.error("Please check that all required fields are present in your secrets.toml file")
@@ -68,12 +56,7 @@ def get_calendar_service():
             )
             
             # Test the credentials
-            try:
-                credentials.refresh(Request())
-                st.write("✅ Credentials are valid")
-            except Exception as e:
-                st.error(f"❌ Credentials validation failed: {str(e)}")
-                return None
+            credentials.refresh(Request())
                 
         except Exception as e:
             st.error(f"❌ Error creating credentials: {str(e)}")
@@ -83,15 +66,6 @@ def get_calendar_service():
         try:
             # Create service
             service = build('calendar', 'v3', credentials=credentials)
-            
-            # Test the service
-            try:
-                service.calendars().get(calendarId='primary').execute()
-                st.write("✅ Calendar service is working")
-            except Exception as e:
-                st.error(f"❌ Calendar service test failed: {str(e)}")
-                return None
-                
             return service
         except Exception as e:
             st.error(f"❌ Error building calendar service: {str(e)}")
@@ -102,16 +76,18 @@ def get_calendar_service():
         st.error(f"❌ Unexpected error initializing calendar service: {str(e)}")
         return None
 
-# Initialize service
+# Initialize service if not already initialized
 if st.session_state.service is None:
     st.write("Initializing calendar service...")
-    st.session_state.service = get_calendar_service()
-    if st.session_state.service is None:
+    service = get_calendar_service()
+    if service is not None:
+        st.session_state.service = service
+    else:
         st.error("Failed to initialize calendar service. Please check the error messages above.")
         st.stop()
 
 # Get calendar ID if not set
-if st.session_state.service and not st.session_state.calendar_id:
+if st.session_state.service is not None and not st.session_state.calendar_id:
     st.write("Please enter your calendar ID (usually your email address):")
     user_calendar_id = st.text_input("Calendar ID")
     
@@ -148,7 +124,7 @@ min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5
 buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
 
 # --- Trigger scheduler ---
-if st.session_state.service and st.session_state.calendar_id:
+if st.session_state.service is not None and st.session_state.calendar_id:
     if st.button("Find My Free Time"):
         with st.spinner("Checking your calendar..."):
             try:
@@ -185,5 +161,9 @@ if st.session_state.service and st.session_state.calendar_id:
                 st.error(f"An error occurred: {e}")
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
 else:
-    st.error("Calendar service not initialized. Please check your credentials.")
+    if st.session_state.service is None:
+        st.error("Calendar service not initialized. Please check your credentials.")
+    else:
+        st.info("Please enter your calendar ID above to continue.")
+
 
