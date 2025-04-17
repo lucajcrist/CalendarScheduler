@@ -36,50 +36,37 @@ def get_calendar_service():
             "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
         }
         
-        st.write("Creating service account credentials...")
         # Create credentials
         credentials = service_account.Credentials.from_service_account_info(
             credentials_dict,
             scopes=['https://www.googleapis.com/auth/calendar.readonly']
         )
         
-        st.write("Building calendar service...")
         # Create service
         service = build('calendar', 'v3', credentials=credentials)
-        
-        # Try to access the calendar directly
-        try:
-            st.write("Testing calendar access...")
-            # Use the service account's email as the calendar ID
-            calendar_id = credentials_dict['client_email']
-            calendar = service.calendars().get(calendarId=calendar_id).execute()
-            st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
-            
-            # Now try to get the user's calendar
-            st.write("Attempting to access user's calendar...")
-            user_calendar_id = st.text_input("Enter your calendar ID (usually your email address):")
-            
-            if user_calendar_id:
-                try:
-                    user_calendar = service.calendars().get(calendarId=user_calendar_id).execute()
-                    st.write(f"✅ Successfully connected to your calendar: {user_calendar['summary']}")
-                    st.session_state.calendar_id = user_calendar_id
-                except Exception as e:
-                    st.error(f"❌ Could not access your calendar: {str(e)}")
-                    st.info("Make sure you've shared your calendar with the service account.")
-            else:
-                st.warning("Please enter your calendar ID to continue.")
-                return None
-                
-        except Exception as e:
-            st.error(f"❌ Error accessing calendar: {str(e)}")
-            st.info("Make sure the service account has proper permissions.")
-            return None
-        
         return service
     except Exception as e:
         st.error(f"❌ Error creating calendar service: {str(e)}")
         return None
+
+# Initialize service
+if st.session_state.service is None:
+    st.session_state.service = get_calendar_service()
+
+# Get calendar ID if not set
+if st.session_state.service and not st.session_state.calendar_id:
+    st.write("Please enter your calendar ID (usually your email address):")
+    user_calendar_id = st.text_input("Calendar ID")
+    
+    if user_calendar_id:
+        try:
+            calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
+            st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
+            st.session_state.calendar_id = user_calendar_id
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"❌ Could not access your calendar: {str(e)}")
+            st.info("Make sure you've shared your calendar with the service account.")
 
 # Cache timezone list
 @st.cache_data
@@ -102,10 +89,6 @@ with col2:
 # --- Meeting and buffer preferences ---
 min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
 buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
-
-# --- Initialize service ---
-if st.session_state.service is None:
-    st.session_state.service = get_calendar_service()
 
 # --- Trigger scheduler ---
 if st.session_state.service and st.session_state.calendar_id:
@@ -146,3 +129,4 @@ if st.session_state.service and st.session_state.calendar_id:
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
 else:
     st.error("Calendar service not initialized. Please check your credentials.")
+
