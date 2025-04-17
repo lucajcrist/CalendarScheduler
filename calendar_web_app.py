@@ -11,23 +11,120 @@ import json
 import os
 from google.auth.transport.requests import Request
 import pickle
+import hashlib
 
 # OAuth scopes
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
-def get_credentials():
+# User data directory
+USER_DATA_DIR = 'user_data'
+os.makedirs(USER_DATA_DIR, exist_ok=True)
+
+def get_user_id(email):
+    """Generate a unique user ID from email."""
+    return hashlib.md5(email.encode()).hexdigest()
+
+def get_user_credentials_path(user_id):
+    """Get the path to store user credentials."""
+    return os.path.join(USER_DATA_DIR, f'{user_id}_token.pickle')
+
+def get_credentials(user_id):
     """Gets valid user credentials from storage or initiates OAuth flow."""
     creds = None
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    token_path = get_user_credentials_path(user_id)
+    
+    if os.path.exists(token_path):
+        with open(token_path, 'rb') as token:
             creds = pickle.load(token)
-    # If there are no (valid) credentials available, let the user log in.
+    
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            return None
+    return creds
+
+def save_credentials(user_id, creds):
+    """Save user credentials to file."""
+    token_path = get_user_credentials_path(user_id)
+    with open(token_path, 'wb') as token:
+        pickle.dump(creds, token)
+
+def delete_credentials(user_id):
+    """Delete user credentials."""
+    token_path = get_user_credentials_path(user_id)
+    if os.path.exists(token_path):
+        os.remove(token_path)
+
+st.set_page_config(page_title="Calendar Scheduler", layout="centered")
+
+# Initialize session state
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'user_email' not in st.session_state:
+    st.session_state.user_email = None
+if 'creds' not in st.session_state:
+    st.session_state.creds = None
+if 'calendar_id' not in st.session_state:
+    st.session_state.calendar_id = None
+if 'show_tutorial' not in st.session_state:
+    st.session_state.show_tutorial = True
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'service' not in st.session_state:
+    st.session_state.service = None
+if 'trigger_rerun' not in st.session_state:
+    st.session_state.trigger_rerun = False
+
+def logout():
+    """Clear authentication state and credentials."""
+    st.session_state.authenticated = False
+    st.session_state.show_tutorial = True
+    st.session_state.creds = None
+    st.session_state.calendar_id = None
+    st.session_state.service = None
+    st.session_state.user_id = None
+    st.session_state.user_email = None
+    st.session_state.trigger_rerun = True
+
+# Check if we need to rerun after logout
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    st.rerun()
+
+# Add subtle logout button in top-right corner if authenticated
+if st.session_state.authenticated:
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col3:
+        st.button("🔒 Logout", on_click=logout, type="secondary", use_container_width=True)
+
+# Add subtle tutorial button (only show when tutorial is not visible)
+if not st.session_state.show_tutorial and not st.session_state.authenticated:
+    if st.button("Show Setup Instructions", type="secondary"):
+        st.session_state.show_tutorial = True
+        st.rerun()
+
+# Show tutorial if it's the first time and not authenticated
+if st.session_state.show_tutorial and not st.session_state.authenticated:
+    st.markdown("""
+    ## Welcome to Calendar Scheduler
+    
+    This app helps you share your available meeting times with others. To get started, you'll need to sign in with your Google account.
+    
+    ### How it Works
+    
+    1. Click the "Sign in with Google" button below
+    2. Choose your Google account
+    3. Grant calendar access when prompted
+    4. You will be redirected back to the app automatically
+    5. Enter your work hours and preferences
+    6. Click "Find My Free Time" to see your availability
+    
+    That's it! No complex setup required.
+    """)
+    
+    if st.button("Sign in with Google"):
+        try:
             # Create credentials from Streamlit secrets
             client_config = {
                 "installed": {
@@ -69,10 +166,26 @@ def get_credentials():
                 try:
                     flow.fetch_token(code=code)
                     creds = flow.credentials
-                    # Save the credentials for the next run
-                    with open('token.pickle', 'wb') as token:
-                        pickle.dump(creds, token)
-                    return creds
+                    
+                    # Get user's email from the credentials
+                    service = build('oauth2', 'v2', credentials=creds)
+                    user_info = service.userinfo().get().execute()
+                    user_email = user_info['email']
+                    user_id = get_user_id(user_email)
+                    
+                    # Save credentials for this user
+                    save_credentials(user_id, creds)
+                    
+                    # Update session state
+                    st.session_state.user_id = user_id
+                    st.session_state.user_email = user_email
+                    st.session_state.creds = creds
+                    st.session_state.authenticated = True
+                    st.session_state.show_tutorial = False
+                    st.session_state.service = build('calendar', 'v3', credentials=creds)
+                    st.session_state.calendar_id = 'primary'
+                    st.success(f"Successfully connected to {user_email}'s calendar!")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Error during authentication: {str(e)}")
                     if "access_denied" in str(e):
@@ -86,84 +199,9 @@ def get_credentials():
                     st.stop()
             else:
                 st.stop()
-    return creds
-
-st.set_page_config(page_title="Calendar Scheduler", layout="centered")
-
-# Initialize session state
-if 'creds' not in st.session_state:
-    st.session_state.creds = None
-if 'calendar_id' not in st.session_state:
-    st.session_state.calendar_id = None
-if 'show_tutorial' not in st.session_state:
-    st.session_state.show_tutorial = True
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'service' not in st.session_state:
-    st.session_state.service = None
-if 'trigger_rerun' not in st.session_state:
-    st.session_state.trigger_rerun = False
-
-def logout():
-    """Clear authentication state and credentials."""
-    st.session_state.authenticated = False
-    st.session_state.show_tutorial = True
-    st.session_state.creds = None
-    st.session_state.calendar_id = None
-    st.session_state.service = None
-    st.session_state.trigger_rerun = True
-    if os.path.exists('token.pickle'):
-        os.remove('token.pickle')
-
-# Check if we need to rerun after logout
-if st.session_state.get('trigger_rerun', False):
-    st.session_state.trigger_rerun = False
-    st.rerun()
-
-# Add subtle logout button in top-right corner if authenticated
-if st.session_state.authenticated:
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col3:
-        st.button("🔒 Logout", on_click=logout, type="secondary", use_container_width=True)
-
-# Add subtle tutorial button (only show when tutorial is not visible)
-if not st.session_state.show_tutorial and not st.session_state.authenticated:
-    if st.button("Show Setup Instructions", type="secondary"):
-        st.session_state.show_tutorial = True
-        st.rerun()
-
-# Show tutorial if it's the first time and not authenticated
-if st.session_state.show_tutorial and not st.session_state.authenticated:
-    st.markdown("""
-    ## Welcome to Calendar Scheduler
-    
-    This app helps you share your available meeting times with others. To get started, you'll need to sign in with your Google account.
-    
-    ### How it Works
-    
-    1. Click the "Sign in with Google" button below
-    2. Choose your Google account
-    3. Grant calendar access when prompted
-    4. You will be redirected back to the app automatically
-    5. Enter your work hours and preferences
-    6. Click "Find My Free Time" to see your availability
-    
-    That's it! No complex setup required.
-    """)
-    
-    if st.button("Sign in with Google"):
-        try:
-            creds = get_credentials()
-            if creds:
-                st.session_state.creds = creds
-                st.session_state.authenticated = True
-                st.session_state.show_tutorial = False
-                st.session_state.service = build('calendar', 'v3', credentials=creds)
-                st.session_state.calendar_id = 'primary'
-                st.success("Successfully connected to your calendar!")
-                st.rerun()
         except Exception as e:
-            st.error(f"Error connecting to Google Calendar: {str(e)}")
+            st.error(f"Error initializing authentication: {str(e)}")
+            st.stop()
     st.stop()
 
 # Main app interface
@@ -171,13 +209,21 @@ st.title("📅 Personal Calendar Availability Checker")
 
 # Get credentials and initialize service
 if not st.session_state.authenticated:
-    creds = get_credentials()
-    if creds:
-        st.session_state.creds = creds
-        st.session_state.authenticated = True
-        st.session_state.service = build('calendar', 'v3', credentials=creds)
-        st.session_state.calendar_id = 'primary'
-        st.rerun()
+    # Try to load saved credentials
+    if st.session_state.user_id:
+        creds = get_credentials(st.session_state.user_id)
+        if creds:
+            st.session_state.creds = creds
+            st.session_state.authenticated = True
+            st.session_state.service = build('calendar', 'v3', credentials=creds)
+            st.session_state.calendar_id = 'primary'
+            st.rerun()
+        else:
+            st.error("Please sign in with Google to continue.")
+            if st.button("Show Setup Instructions Again"):
+                st.session_state.show_tutorial = True
+                st.rerun()
+            st.stop()
     else:
         st.error("Please sign in with Google to continue.")
         if st.button("Show Setup Instructions Again"):
@@ -194,7 +240,7 @@ if not st.session_state.service:
 # Get user's primary calendar
 try:
     calendar = st.session_state.service.calendars().get(calendarId='primary').execute()
-    st.write(f"✅ Connected to your calendar: {calendar['summary']}")
+    st.write(f"✅ Connected to {st.session_state.user_email}'s calendar: {calendar['summary']}")
 except Exception as e:
     st.error(f"❌ Could not access your calendar: {str(e)}")
     st.stop()
@@ -291,3 +337,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
