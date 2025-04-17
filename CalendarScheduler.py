@@ -133,10 +133,24 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, start_date=No
                 timeMax=end_utc.isoformat(),
                 singleEvents=True,
                 orderBy='startTime',
-                maxResults=1000
+                maxResults=2500  # Increased from 1000 to 2500
             ).execute()
             events = events_result.get('items', [])
             print(f"Found {len(events)} events with full details")
+            
+            # Handle pagination if there are more events
+            while 'nextPageToken' in events_result:
+                events_result = service.events().list(
+                    calendarId=calendar_id,
+                    timeMin=start_utc.isoformat(),
+                    timeMax=end_utc.isoformat(),
+                    singleEvents=True,
+                    orderBy='startTime',
+                    maxResults=2500,
+                    pageToken=events_result['nextPageToken']
+                ).execute()
+                events.extend(events_result.get('items', []))
+                print(f"Found additional {len(events_result.get('items', []))} events")
         except Exception as e:
             print(f"Could not get full event details: {e}")
             events = []
@@ -386,4 +400,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
