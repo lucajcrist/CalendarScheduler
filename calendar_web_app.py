@@ -28,6 +28,10 @@ def get_user_credentials_path(user_id):
     """Get the path to store user credentials."""
     return os.path.join(USER_DATA_DIR, f'{user_id}_token.pickle')
 
+def get_user_preferences_path(user_id):
+    """Get the path to store user preferences."""
+    return os.path.join(USER_DATA_DIR, f'{user_id}_preferences.json')
+
 def get_credentials(user_id):
     """Gets valid user credentials from storage or initiates OAuth flow."""
     creds = None
@@ -56,6 +60,30 @@ def delete_credentials(user_id):
     if os.path.exists(token_path):
         os.remove(token_path)
 
+def load_user_preferences(user_id):
+    """Load user preferences from file."""
+    prefs_path = get_user_preferences_path(user_id)
+    if os.path.exists(prefs_path):
+        with open(prefs_path, 'r') as f:
+            return json.load(f)
+    return None
+
+def save_user_preferences(user_id, preferences):
+    """Save user preferences to file."""
+    prefs_path = get_user_preferences_path(user_id)
+    with open(prefs_path, 'w') as f:
+        json.dump(preferences, f)
+
+def get_default_preferences():
+    """Get default user preferences."""
+    return {
+        'timezone': 'US/Eastern',
+        'work_start': '09:00',
+        'work_end': '17:00',
+        'min_minutes': 30,
+        'buffer_minutes': 15
+    }
+
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 
 # Initialize session state
@@ -75,6 +103,8 @@ if 'service' not in st.session_state:
     st.session_state.service = None
 if 'trigger_rerun' not in st.session_state:
     st.session_state.trigger_rerun = False
+if 'preferences' not in st.session_state:
+    st.session_state.preferences = None
 
 def logout():
     """Clear authentication state and credentials."""
@@ -85,6 +115,7 @@ def logout():
     st.session_state.service = None
     st.session_state.user_id = None
     st.session_state.user_email = None
+    st.session_state.preferences = None
     st.session_state.trigger_rerun = True
 
 # Check if we need to rerun after logout
@@ -297,17 +328,42 @@ with col2:
 st.write(f"Showing availability from **{start_date.strftime('%A, %B %d, %Y')}** to **{end_date.strftime('%A, %B %d, %Y')}**")
 
 # --- Work hours ---
-st.subheader("Work Hours")
-col1, col2 = st.columns(2)
-with col1:
-    start_time = st.time_input("Workday starts at:", dtime(9, 0))
-with col2:
-    end_time = st.time_input("Workday ends at:", dtime(17, 0))
+if st.session_state.authenticated:
+    st.subheader("Work Hours")
+    col1, col2 = st.columns(2)
+    with col1:
+        work_start = st.time_input("Workday starts at:", 
+                                 value=dtime.fromisoformat(st.session_state.preferences['work_start']),
+                                 key='work_start')
+    with col2:
+        work_end = st.time_input("Workday ends at:", 
+                               value=dtime.fromisoformat(st.session_state.preferences['work_end']),
+                               key='work_end')
 
-# --- Meeting and buffer preferences ---
-st.subheader("Meeting Preferences")
-min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
-buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
+    st.subheader("Meeting Preferences")
+    min_minutes = st.slider("Minimum meeting length (minutes):", 
+                          15, 120, st.session_state.preferences['min_minutes'], step=5,
+                          key='min_minutes')
+    buffer_minutes = st.slider("Buffer before and after events (minutes):", 
+                             0, 60, st.session_state.preferences['buffer_minutes'], step=5,
+                             key='buffer_minutes')
+
+    # Save preferences when they change
+    if (work_start != dtime.fromisoformat(st.session_state.preferences['work_start']) or
+        work_end != dtime.fromisoformat(st.session_state.preferences['work_end']) or
+        min_minutes != st.session_state.preferences['min_minutes'] or
+        buffer_minutes != st.session_state.preferences['buffer_minutes']):
+        
+        new_preferences = {
+            'work_start': work_start.isoformat(),
+            'work_end': work_end.isoformat(),
+            'min_minutes': min_minutes,
+            'buffer_minutes': buffer_minutes,
+            'timezone': st.session_state.preferences['timezone']
+        }
+        st.session_state.preferences = new_preferences
+        save_user_preferences(st.session_state.user_id, new_preferences)
+        st.success("Preferences saved!")
 
 # --- Trigger scheduler ---
 if st.button("Find My Free Time"):
@@ -323,7 +379,7 @@ if st.button("Find My Free Time"):
                 st.warning("No busy blocks found. Make sure you have events in your calendar.")
             
             # Find free windows
-            free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
+            free_windows = find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes)
 
             if not free_windows:
                 st.warning("No free time blocks found with the selected settings.")
@@ -360,6 +416,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
-
 
