@@ -85,11 +85,17 @@ def get_busy_times(service, local_tz, buffer_minutes):
     start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=7)
 
-    # Convert to UTC once
+    print(f"Local timezone: {local_tz}")
+    print(f"Current time in local timezone: {now}")
+    print(f"Start of week in local timezone: {start_of_week}")
+    print(f"End of week in local timezone: {end_of_week}")
+
+    # Convert to UTC for API call
     start_utc = start_of_week.astimezone(tz.UTC)
     end_utc = end_of_week.astimezone(tz.UTC)
 
-    print(f"Fetching events from {start_utc} to {end_utc}")
+    print(f"Start of week in UTC: {start_utc}")
+    print(f"End of week in UTC: {end_utc}")
 
     # Get events for the week
     try:
@@ -99,7 +105,7 @@ def get_busy_times(service, local_tz, buffer_minutes):
             timeMax=end_utc.isoformat(),
             singleEvents=True,
             orderBy='startTime',
-            maxResults=1000  # Increased to get more events
+            maxResults=1000
         ).execute()
 
         events = events_result.get('items', [])
@@ -121,10 +127,25 @@ def get_busy_times(service, local_tz, buffer_minutes):
                     end = f"{end}T23:59:59"
                 
                 try:
-                    start_dt = parser.isoparse(start).astimezone(local_tz)
-                    end_dt = parser.isoparse(end).astimezone(local_tz)
+                    # Parse the datetime string
+                    start_dt = parser.isoparse(start)
+                    end_dt = parser.isoparse(end)
+                    
+                    # If the datetime doesn't have timezone info, assume it's in UTC
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=tz.UTC)
+                    if end_dt.tzinfo is None:
+                        end_dt = end_dt.replace(tzinfo=tz.UTC)
+                    
+                    # Convert to local timezone
+                    start_dt = start_dt.astimezone(local_tz)
+                    end_dt = end_dt.astimezone(local_tz)
+                    
+                    print(f"Event: {event.get('summary', 'No title')}")
+                    print(f"Original start: {start} -> Local start: {start_dt}")
+                    print(f"Original end: {end} -> Local end: {end_dt}")
+                    
                     busy_blocks.append((start_dt - buffer, end_dt + buffer))
-                    print(f"Added busy block: {start_dt} to {end_dt}")
                 except Exception as e:
                     print(f"Error processing event: {e}")
                     continue
@@ -224,4 +245,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
