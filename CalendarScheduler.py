@@ -83,38 +83,44 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_wee
     start_time = time.time()
     now = datetime.now(local_tz)
     
-    # Calculate start and end of the week
-    if show_next_week:
-        # Start from next Monday
-        days_until_next_monday = (7 - now.weekday()) % 7
-        if days_until_next_monday == 0:  # If today is Monday, add 7 days
-            days_until_next_monday = 7
-        start_of_week = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-        print(f"Next week calculation:")
-        print(f"Today is {now.strftime('%A')}")
-        print(f"Days until next Monday: {days_until_next_monday}")
-    else:
-        # Start from this Monday
-        start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        print(f"This week calculation:")
-        print(f"Today is {now.strftime('%A')}")
-        print(f"Days since Monday: {now.weekday()}")
-        
-    end_of_week = start_of_week + timedelta(days=7)
+    # Calculate start and end of this week
+    this_week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    this_week_end = this_week_start + timedelta(days=7)
+    
+    # Calculate start and end of next week
+    days_until_next_monday = (7 - now.weekday()) % 7
+    if days_until_next_monday == 0:  # If today is Monday, add 7 days
+        days_until_next_monday = 7
+    next_week_start = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    next_week_end = next_week_start + timedelta(days=7)
 
     print(f"Local timezone: {local_tz}")
     print(f"Current time in local timezone: {now}")
-    print(f"Start of week in local timezone: {start_of_week}")
-    print(f"End of week in local timezone: {end_of_week}")
+    
+    if show_next_week:
+        print(f"Getting both this week and next week's events")
+        print(f"This week start: {this_week_start}")
+        print(f"This week end: {this_week_end}")
+        print(f"Next week start: {next_week_start}")
+        print(f"Next week end: {next_week_end}")
+        
+        # Convert to UTC for API call
+        start_utc = this_week_start.astimezone(tz.UTC)
+        end_utc = next_week_end.astimezone(tz.UTC)
+    else:
+        print(f"Getting this week's events only")
+        print(f"This week start: {this_week_start}")
+        print(f"This week end: {this_week_end}")
+        
+        # Convert to UTC for API call
+        start_utc = this_week_start.astimezone(tz.UTC)
+        end_utc = this_week_end.astimezone(tz.UTC)
 
-    # Convert to UTC for API call
-    start_utc = start_of_week.astimezone(tz.UTC)
-    end_utc = end_of_week.astimezone(tz.UTC)
+    print(f"API call time range:")
+    print(f"Start in UTC: {start_utc}")
+    print(f"End in UTC: {end_utc}")
 
-    print(f"Start of week in UTC: {start_utc}")
-    print(f"End of week in UTC: {end_utc}")
-
-    # Get events for the week
+    # Get events for the time period
     try:
         events_result = service.events().list(
             calendarId=calendar_id,
@@ -210,106 +216,111 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
     busy_blocks = merge_blocks(busy_blocks)
     min_duration = timedelta(minutes=min_minutes)
 
-    # Process one day at a time
-    for day_offset in range(5):  # Mon to Fri
-        # Calculate the day based on the first busy block's date
-        if busy_blocks:
-            first_busy_day = busy_blocks[0][0].date()
-            day = first_busy_day + timedelta(days=day_offset)
-        else:
-            # If no busy blocks, use current week
-            day = (now + timedelta(days=day_offset - now.weekday())).date()
-            
-        start = datetime.combine(day, work_start, tzinfo=local_tz)
-        end = datetime.combine(day, work_end, tzinfo=local_tz)
+    # Calculate the start dates for this week and next week
+    this_week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    days_until_next_monday = (7 - now.weekday()) % 7
+    if days_until_next_monday == 0:  # If today is Monday, add 7 days
+        days_until_next_monday = 7
+    next_week_start = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Process both weeks
+    for week_offset in range(2):  # 0 for this week, 1 for next week
+        week_start = this_week_start if week_offset == 0 else next_week_start
+        print(f"\nProcessing {'this' if week_offset == 0 else 'next'} week starting from {week_start.strftime('%A, %Y-%m-%d')}")
         
-        print(f"Processing day: {day.strftime('%A, %Y-%m-%d')}")
-        
-        # Skip past days
-        if day < now.date():
-            print(f"Skipping past day: {day}")
-            continue
+        # Process one day at a time
+        for day_offset in range(5):  # Mon to Fri
+            day = (week_start + timedelta(days=day_offset)).date()
+            start = datetime.combine(day, work_start, tzinfo=local_tz)
+            end = datetime.combine(day, work_end, tzinfo=local_tz)
             
-        # For today, adjust start time to current time if it's later than work start
-        if day == now.date():
-            start = max(start, now)
-            # If we're past work hours for today, skip to next day
-            if start >= end:
-                print(f"Skipping today as work hours have passed")
+            print(f"Processing day: {day.strftime('%A, %Y-%m-%d')}")
+            
+            # Skip past days
+            if day < now.date():
+                print(f"Skipping past day: {day}")
                 continue
                 
-        current = start
-        day_windows = []
-
-        # Filter busy blocks for this day
-        day_busy_blocks = [(s, e) for s, e in busy_blocks if s.date() == day or e.date() == day]
-        
-        # Sort busy blocks by start time
-        day_busy_blocks.sort(key=lambda x: x[0])
-        
-        # If no busy blocks for the day, add the entire workday as a free window
-        if not day_busy_blocks:
-            if (end - start) >= min_duration:
-                day_windows.append((start, end))
-        else:
-            # Process each busy block
-            for b_start, b_end in day_busy_blocks:
-                # Skip blocks that don't overlap with work hours
-                if b_end <= start or b_start >= end:
+            # For today, adjust start time to current time if it's later than work start
+            if day == now.date():
+                start = max(start, now)
+                # If we're past work hours for today, skip to next day
+                if start >= end:
+                    print(f"Skipping today as work hours have passed")
                     continue
                     
-                # Adjust block times to work hours
-                b_start = max(b_start, start)
-                b_end = min(b_end, end)
-                
-                # If there's a gap before this block
-                if b_start > current:
+            current = start
+            day_windows = []
+
+            # Filter busy blocks for this day
+            day_busy_blocks = [(s, e) for s, e in busy_blocks if s.date() == day or e.date() == day]
+            
+            # Sort busy blocks by start time
+            day_busy_blocks.sort(key=lambda x: x[0])
+            
+            # If no busy blocks for the day, add the entire workday as a free window
+            if not day_busy_blocks:
+                if (end - start) >= min_duration:
+                    day_windows.append((start, end))
+            else:
+                # Process each busy block
+                for b_start, b_end in day_busy_blocks:
+                    # Skip blocks that don't overlap with work hours
+                    if b_end <= start or b_start >= end:
+                        continue
+                        
+                    # Adjust block times to work hours
+                    b_start = max(b_start, start)
+                    b_end = min(b_end, end)
+                    
+                    # If there's a gap before this block
+                    if b_start > current:
+                        free_start = current
+                        free_end = b_start
+                        # Only add if it's long enough and within work hours
+                        if (free_end - free_start) >= min_duration:
+                            day_windows.append((free_start, free_end))
+                    
+                    current = max(current, b_end)
+
+                # Check for free time after the last busy block
+                if current < end:
                     free_start = current
-                    free_end = b_start
-                    # Only add if it's long enough and within work hours
+                    free_end = end
                     if (free_end - free_start) >= min_duration:
                         day_windows.append((free_start, free_end))
-                
-                current = max(current, b_end)
 
-            # Check for free time after the last busy block
-            if current < end:
-                free_start = current
-                free_end = end
-                if (free_end - free_start) >= min_duration:
-                    day_windows.append((free_start, free_end))
+            # Filter out any invalid windows
+            valid_windows = []
+            for window_start, window_end in day_windows:
+                # Skip zero-duration windows
+                if window_start >= window_end:
+                    continue
+                    
+                # Skip windows that are too short
+                if (window_end - window_start) < min_duration:
+                    continue
+                    
+                # Ensure windows are within work hours
+                window_start = max(window_start, start)
+                window_end = min(window_end, end)
+                
+                # Skip if window is now too short after adjustment
+                if (window_end - window_start) < min_duration:
+                    continue
+                    
+                # Skip past time slots
+                if window_start < now:
+                    continue
+                    
+                # Round times to nearest 5 minutes
+                window_start = window_start.replace(minute=(window_start.minute // 5) * 5)
+                window_end = window_end.replace(minute=(window_end.minute // 5) * 5)
+                
+                valid_windows.append((window_start, window_end))
 
-        # Filter out any invalid windows
-        valid_windows = []
-        for window_start, window_end in day_windows:
-            # Skip zero-duration windows
-            if window_start >= window_end:
-                continue
-                
-            # Skip windows that are too short
-            if (window_end - window_start) < min_duration:
-                continue
-                
-            # Ensure windows are within work hours
-            window_start = max(window_start, start)
-            window_end = min(window_end, end)
-            
-            # Skip if window is now too short after adjustment
-            if (window_end - window_start) < min_duration:
-                continue
-                
-            # Skip past time slots
-            if window_start < now:
-                continue
-                
-            # Round times to nearest 5 minutes
-            window_start = window_start.replace(minute=(window_start.minute // 5) * 5)
-            window_end = window_end.replace(minute=(window_end.minute // 5) * 5)
-            
-            valid_windows.append((window_start, window_end))
-
-        if valid_windows:
-            free_windows.append((day, tuple(valid_windows)))
+            if valid_windows:
+                free_windows.append((day, tuple(valid_windows)))
 
     print(f"⏱️ find_free_windows took: {time.time() - start_time:.2f} seconds")
     return tuple(free_windows)
@@ -342,3 +353,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
