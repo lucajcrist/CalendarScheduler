@@ -54,8 +54,10 @@ def get_credentials():
             ### Authorization Steps:
             1. Click the link below to open the authorization page
             2. Sign in with your Google account
-            3. Grant calendar access
-            4. You will be redirected back to the app automatically
+            3. You may see a warning about the app not being verified - this is normal for testing
+            4. Click "Advanced" and then "Go to Calendar Scheduler (unsafe)"
+            5. Grant calendar access when prompted
+            6. You will be redirected back to the app automatically
             """)
             
             st.markdown(f'[Click here to authorize]({auth_url})')
@@ -72,6 +74,14 @@ def get_credentials():
                     return creds
                 except Exception as e:
                     st.error(f"Error during authentication: {str(e)}")
+                    if "access_denied" in str(e):
+                        st.error("""
+                        The app is currently in testing mode. To use it:
+                        1. Go to the Google Cloud Console
+                        2. Navigate to OAuth consent screen
+                        3. Add your email as a test user
+                        4. Try signing in again
+                        """)
                     st.stop()
             else:
                 st.stop()
@@ -258,4 +268,3 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
