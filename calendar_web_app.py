@@ -328,7 +328,7 @@ with col2:
 st.write(f"Showing availability from **{start_date.strftime('%A, %B %d, %Y')}** to **{end_date.strftime('%A, %B %d, %Y')}**")
 
 # --- Work hours ---
-if st.session_state.authenticated:
+if st.session_state.authenticated and st.session_state.preferences:
     st.subheader("Work Hours")
     col1, col2 = st.columns(2)
     with col1:
