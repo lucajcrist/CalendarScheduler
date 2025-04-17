@@ -164,7 +164,6 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                         
                         # Join date and times
                         formatted_output.append(f"• {date_str}: {', '.join(time_blocks)}")
-                        formatted_output.append("")  # Add blank line between days
                     
                     # Join with newlines and display in a text area
                     email_text = "\n".join(formatted_output)
@@ -179,3 +178,4 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
+
