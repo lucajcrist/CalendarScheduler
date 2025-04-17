@@ -42,6 +42,15 @@ def get_calendar_service():
         
         # Create service
         service = build('calendar', 'v3', credentials=credentials)
+        
+        # Test calendar access
+        try:
+            calendar = service.calendars().get(calendarId='primary').execute()
+            st.write(f"Successfully connected to calendar: {calendar['summary']}")
+        except Exception as e:
+            st.error(f"Error accessing calendar: {str(e)}")
+            st.info("Make sure you've shared your calendar with the service account email: " + credentials_dict["client_email"])
+        
         return service
     except Exception as e:
         st.error(f"Error creating calendar service: {str(e)}")
@@ -84,6 +93,7 @@ if st.session_state.service:
                 busy_start = time.time()
                 busy_blocks = get_busy_times(st.session_state.service, local_tz, buffer_minutes)
                 st.write(f"⏱️ Getting busy times took: {time.time() - busy_start:.2f} seconds")
+                st.write(f"Found {len(busy_blocks)} busy blocks")
                 
                 # Find free windows
                 free_start = time.time()
@@ -102,6 +112,7 @@ if st.session_state.service:
                             st.write(f"{start.strftime('%-I:%M %p')} to {end.strftime('%-I:%M %p')}")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+                st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
 else:
     st.error("Calendar service not initialized. Please check your credentials.")
 
