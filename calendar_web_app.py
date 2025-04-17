@@ -23,35 +23,55 @@ if 'calendar_id' not in st.session_state:
 def get_calendar_service():
     try:
         # Get credentials from Streamlit secrets
-        credentials_dict = {
-            "type": st.secrets["google"]["type"],
-            "project_id": st.secrets["google"]["project_id"],
-            "private_key_id": st.secrets["google"]["private_key_id"],
-            "private_key": st.secrets["google"]["private_key"],
-            "client_email": st.secrets["google"]["client_email"],
-            "client_id": st.secrets["google"]["client_id"],
-            "auth_uri": st.secrets["google"]["auth_uri"],
-            "token_uri": st.secrets["google"]["token_uri"],
-            "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
-        }
+        try:
+            credentials_dict = {
+                "type": st.secrets["google"]["type"],
+                "project_id": st.secrets["google"]["project_id"],
+                "private_key_id": st.secrets["google"]["private_key_id"],
+                "private_key": st.secrets["google"]["private_key"],
+                "client_email": st.secrets["google"]["client_email"],
+                "client_id": st.secrets["google"]["client_id"],
+                "auth_uri": st.secrets["google"]["auth_uri"],
+                "token_uri": st.secrets["google"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
+            }
+        except Exception as e:
+            st.error(f"❌ Error reading credentials from secrets: {str(e)}")
+            st.error("Please check that all required fields are present in your secrets.toml file")
+            return None
         
-        # Create credentials
-        credentials = service_account.Credentials.from_service_account_info(
-            credentials_dict,
-            scopes=['https://www.googleapis.com/auth/calendar.readonly']
-        )
+        try:
+            # Create credentials
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict,
+                scopes=['https://www.googleapis.com/auth/calendar.readonly']
+            )
+        except Exception as e:
+            st.error(f"❌ Error creating credentials: {str(e)}")
+            st.error("Please check that your private key and other credentials are correctly formatted")
+            return None
         
-        # Create service
-        service = build('calendar', 'v3', credentials=credentials)
-        return service
+        try:
+            # Create service
+            service = build('calendar', 'v3', credentials=credentials)
+            return service
+        except Exception as e:
+            st.error(f"❌ Error building calendar service: {str(e)}")
+            st.error("Please check that the Calendar API is enabled in your Google Cloud project")
+            return None
+            
     except Exception as e:
-        st.error(f"❌ Error creating calendar service: {str(e)}")
+        st.error(f"❌ Unexpected error initializing calendar service: {str(e)}")
         return None
 
 # Initialize service
 if st.session_state.service is None:
+    st.write("Initializing calendar service...")
     st.session_state.service = get_calendar_service()
+    if st.session_state.service is None:
+        st.error("Failed to initialize calendar service. Please check the error messages above.")
+        st.stop()
 
 # Get calendar ID if not set
 if st.session_state.service and not st.session_state.calendar_id:
