@@ -131,9 +131,7 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                 total_start = time.time()
                 
                 # Get busy times
-                busy_start = time.time()
                 busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes)
-                st.write(f"⏱️ Getting busy times took: {time.time() - busy_start:.2f} seconds")
                 st.write(f"Found {len(busy_blocks)} busy blocks")
                 
                 if len(busy_blocks) == 0:
@@ -143,11 +141,7 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                     st.write("3. The service account has proper permissions")
                 
                 # Find free windows
-                free_start = time.time()
                 free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
-                st.write(f"⏱️ Finding free windows took: {time.time() - free_start:.2f} seconds")
-                
-                st.write(f"⏱️ Total operation took: {time.time() - total_start:.2f} seconds")
 
                 if not free_windows:
                     st.warning("No free time blocks found with the selected settings.")
@@ -165,5 +159,4 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
-
 
