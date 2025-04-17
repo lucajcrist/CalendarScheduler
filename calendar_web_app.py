@@ -20,6 +20,73 @@ if 'calendar_id' not in st.session_state:
 if 'show_tutorial' not in st.session_state:
     st.session_state.show_tutorial = True
 
+# Cache the service object
+@st.cache_resource
+def get_calendar_service():
+    try:
+        # Get credentials from Streamlit secrets
+        try:
+            # Format private key with proper newlines
+            private_key = st.secrets["google"]["private_key"]
+            if "\\n" in private_key:
+                private_key = private_key.replace("\\n", "\n")
+            
+            credentials_dict = {
+                "type": st.secrets["google"]["type"],
+                "project_id": st.secrets["google"]["project_id"],
+                "private_key_id": st.secrets["google"]["private_key_id"],
+                "private_key": private_key,
+                "client_email": st.secrets["google"]["client_email"],
+                "client_id": st.secrets["google"]["client_id"],
+                "auth_uri": st.secrets["google"]["auth_uri"],
+                "token_uri": st.secrets["google"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
+            }
+            
+        except Exception as e:
+            st.error(f"❌ Error reading credentials from secrets: {str(e)}")
+            st.error("Please check that all required fields are present in your secrets.toml file")
+            return None
+        
+        try:
+            # Create credentials
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict,
+                scopes=['https://www.googleapis.com/auth/calendar.readonly']
+            )
+            
+            # Test the credentials
+            credentials.refresh(Request())
+                
+        except Exception as e:
+            st.error(f"❌ Error creating credentials: {str(e)}")
+            st.error("Please check that your private key and other credentials are correctly formatted")
+            return None
+        
+        try:
+            # Create service
+            service = build('calendar', 'v3', credentials=credentials)
+            return service
+        except Exception as e:
+            st.error(f"❌ Error building calendar service: {str(e)}")
+            st.error("Please check that the Calendar API is enabled in your Google Cloud project")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Unexpected error initializing calendar service: {str(e)}")
+        return None
+
+# Initialize service if not already initialized
+if st.session_state.service is None:
+    st.write("Initializing calendar service...")
+    service = get_calendar_service()
+    if service is not None:
+        st.session_state.service = service
+    else:
+        st.error("Failed to initialize calendar service. Please check the error messages above.")
+        st.stop()
+
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial:
     if st.button("Show Setup Instructions", type="secondary"):
@@ -85,25 +152,24 @@ if st.session_state.show_tutorial:
 st.title("📅 Personal Calendar Availability Checker")
 
 # Always show calendar ID input
-if st.session_state.service is not None:
-    st.write("Enter or update your calendar ID:")
-    st.info("""
-    Your calendar ID is usually your email address. You can also find it by:
-    1. Going to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
-    2. Clicking on your calendar under "Settings for my calendars"
-    3. Looking for "Calendar ID" in the "Integrate calendar" section
-    """)
-    user_calendar_id = st.text_input("Calendar ID", value=st.session_state.calendar_id or "")
-    
-    if user_calendar_id and user_calendar_id != st.session_state.calendar_id:
-        try:
-            calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
-            st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
-            st.session_state.calendar_id = user_calendar_id
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Could not access your calendar: {str(e)}")
-            st.info("Make sure you've shared your calendar with the service account.")
+st.write("Enter or update your calendar ID:")
+st.info("""
+Your calendar ID is usually your email address. You can also find it by:
+1. Going to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
+2. Clicking on your calendar under "Settings for my calendars"
+3. Looking for "Calendar ID" in the "Integrate calendar" section
+""")
+user_calendar_id = st.text_input("Calendar ID", value=st.session_state.calendar_id or "")
+
+if user_calendar_id and user_calendar_id != st.session_state.calendar_id:
+    try:
+        calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
+        st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
+        st.session_state.calendar_id = user_calendar_id
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Could not access your calendar: {str(e)}")
+        st.info("Make sure you've shared your calendar with the service account.")
 
 # Cache timezone list
 @st.cache_data
@@ -191,3 +257,4 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
+
