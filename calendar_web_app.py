@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import time as dtime, timedelta, datetime
+import time as time_module
 from CalendarScheduler import get_busy_times, find_free_windows
 from dateutil import tz
 import pytz
@@ -7,7 +8,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import json
-import time
 import os
 from google.auth.transport.requests import Request
 import pickle
@@ -244,7 +244,7 @@ buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 1
 if st.button("Find My Free Time"):
     with st.spinner("Checking your calendar..."):
         try:
-            total_start = time.time()
+            total_start = time_module.time()
             
             # Get busy times for the selected date range
             busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, 
