@@ -112,6 +112,9 @@ default_tz = "US/Eastern"
 timezone_label = st.selectbox("Choose your time zone:", options=[default_tz] + [tz for tz in timezones if tz != default_tz])
 local_tz = pytz.timezone(timezone_label)
 
+# --- Week selector ---
+show_next_week = st.checkbox("Show next week's availability")
+
 # --- Work hours ---
 col1, col2 = st.columns(2)
 with col1:
@@ -131,7 +134,7 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                 total_start = time.time()
                 
                 # Get busy times
-                busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes)
+                busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, show_next_week)
                 
                 if len(busy_blocks) == 0:
                     st.warning("No busy blocks found. Make sure:")
