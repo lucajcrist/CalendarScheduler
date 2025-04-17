@@ -310,24 +310,24 @@ default_tz = "US/Eastern"
 timezone_label = st.selectbox("Choose your time zone:", options=[default_tz] + [tz for tz in timezones if tz != default_tz])
 local_tz = pytz.timezone(timezone_label)
 
-# --- Date range selection ---
-st.subheader("Select Date Range")
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("From:", 
-                              value=datetime.now().date(),
-                              min_value=datetime.now().date(),
-                              max_value=datetime.now().date() + timedelta(days=90))
-with col2:
-    end_date = st.date_input("To:", 
-                            value=datetime.now().date() + timedelta(days=14),
-                            min_value=start_date,
-                            max_value=datetime.now().date() + timedelta(days=90))
+# Initialize default values for preferences
+work_start = dtime(9, 0)
+work_end = dtime(17, 0)
+min_minutes = 30
+buffer_minutes = 15
 
-# Display selected date range
-st.write(f"Showing availability from **{start_date.strftime('%A, %B %d, %Y')}** to **{end_date.strftime('%A, %B %d, %Y')}**")
+# After successful authentication, load or create preferences
+if st.session_state.authenticated and st.session_state.user_id:
+    if st.session_state.preferences is None:
+        # Try to load existing preferences
+        preferences = load_user_preferences(st.session_state.user_id)
+        if preferences is None:
+            # Create new preferences with defaults
+            preferences = get_default_preferences()
+            save_user_preferences(st.session_state.user_id, preferences)
+        st.session_state.preferences = preferences
 
-# --- Work hours ---
+# Replace the preferences section with this:
 if st.session_state.authenticated and st.session_state.preferences:
     st.subheader("Work Hours")
     col1, col2 = st.columns(2)
@@ -364,6 +364,23 @@ if st.session_state.authenticated and st.session_state.preferences:
         st.session_state.preferences = new_preferences
         save_user_preferences(st.session_state.user_id, new_preferences)
         st.success("Preferences saved!")
+
+# --- Date range selection ---
+st.subheader("Select Date Range")
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("From:", 
+                              value=datetime.now().date(),
+                              min_value=datetime.now().date(),
+                              max_value=datetime.now().date() + timedelta(days=90))
+with col2:
+    end_date = st.date_input("To:", 
+                            value=datetime.now().date() + timedelta(days=14),
+                            min_value=start_date,
+                            max_value=datetime.now().date() + timedelta(days=90))
+
+# Display selected date range
+st.write(f"Showing availability from **{start_date.strftime('%A, %B %d, %Y')}** to **{end_date.strftime('%A, %B %d, %Y')}**")
 
 # --- Trigger scheduler ---
 if st.button("Find My Free Time"):
