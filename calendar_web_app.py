@@ -132,7 +132,6 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                 
                 # Get busy times
                 busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes)
-                st.write(f"Found {len(busy_blocks)} busy blocks")
                 
                 if len(busy_blocks) == 0:
                     st.warning("No busy blocks found. Make sure:")
@@ -161,10 +160,12 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                             # Format times in lowercase with 'am/pm'
                             start_str = start.strftime('%-I:%M%p').lower()
                             end_str = end.strftime('%-I:%M%p').lower()
-                            time_blocks.append(f"{start_str} to {end_str}")
+                            time_blocks.append(f"• {start_str} to {end_str}")
                         
-                        # Join date and times with colon
-                        formatted_output.append(f"{date_str}: {', '.join(time_blocks)}")
+                        # Join date and times
+                        formatted_output.append(date_str + ":")
+                        formatted_output.extend(time_blocks)
+                        formatted_output.append("")  # Add blank line between days
                     
                     # Join with newlines and display in a text area
                     email_text = "\n".join(formatted_output)
@@ -179,4 +180,3 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
-
