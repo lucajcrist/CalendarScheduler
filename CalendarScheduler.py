@@ -122,17 +122,54 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_wee
 
     # Get events for the time period
     try:
-        events_result = service.events().list(
-            calendarId=calendar_id,
-            timeMin=start_utc.isoformat(),
-            timeMax=end_utc.isoformat(),
-            singleEvents=True,
-            orderBy='startTime',
-            maxResults=1000
-        ).execute()
+        # First, try to get calendar details to check access level
+        try:
+            calendar = service.calendars().get(calendarId=calendar_id).execute()
+            access_level = calendar.get('accessRole', 'unknown')
+            print(f"Calendar access level: {access_level}")
+        except Exception as e:
+            print(f"Could not get calendar details: {e}")
+            access_level = 'unknown'
 
-        events = events_result.get('items', [])
-        print(f"Found {len(events)} events in the calendar")
+        # Try to get events with full details first
+        try:
+            events_result = service.events().list(
+                calendarId=calendar_id,
+                timeMin=start_utc.isoformat(),
+                timeMax=end_utc.isoformat(),
+                singleEvents=True,
+                orderBy='startTime',
+                maxResults=1000
+            ).execute()
+            events = events_result.get('items', [])
+            print(f"Found {len(events)} events with full details")
+        except Exception as e:
+            print(f"Could not get full event details: {e}")
+            events = []
+
+        # If no events found with full details, try free/busy
+        if not events:
+            try:
+                freebusy_request = {
+                    "timeMin": start_utc.isoformat(),
+                    "timeMax": end_utc.isoformat(),
+                    "items": [{"id": calendar_id}]
+                }
+                freebusy_result = service.freebusy().query(body=freebusy_request).execute()
+                busy_blocks = freebusy_result.get('calendars', {}).get(calendar_id, {}).get('busy', [])
+                print(f"Found {len(busy_blocks)} busy blocks from free/busy")
+                
+                # Convert free/busy blocks to events format
+                events = []
+                for block in busy_blocks:
+                    events.append({
+                        'start': {'dateTime': block['start']},
+                        'end': {'dateTime': block['end']},
+                        'transparency': 'opaque'  # Mark as busy time
+                    })
+            except Exception as e:
+                print(f"Could not get free/busy information: {e}")
+                return tuple()
         
         busy_blocks = []
         buffer = timedelta(minutes=buffer_minutes)
@@ -142,8 +179,8 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_wee
             if event.get('transparency') == 'transparent':
                 continue
                 
-            # Skip declined events
-            if event.get('attendees'):
+            # Skip declined events if we have full access
+            if access_level in ['owner', 'writer'] and event.get('attendees'):
                 my_response = next((a.get('responseStatus') for a in event['attendees'] 
                                  if a.get('self', False)), None)
                 if my_response == 'declined':
@@ -175,9 +212,11 @@ def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_wee
                     start_dt = start_dt.astimezone(local_tz)
                     end_dt = end_dt.astimezone(local_tz)
                     
-                    print(f"Event: {event.get('summary', 'No title')}")
-                    print(f"Original start: {start} -> Local start: {start_dt}")
-                    print(f"Original end: {end} -> Local end: {end_dt}")
+                    # Only print event details if we have full access
+                    if access_level in ['owner', 'writer'] and event.get('summary'):
+                        print(f"Event: {event.get('summary', 'No title')}")
+                        print(f"Original start: {start} -> Local start: {start_dt}")
+                        print(f"Original end: {end} -> Local end: {end_dt}")
                     
                     # Add buffer time
                     busy_blocks.append((start_dt - buffer, end_dt + buffer))
@@ -353,4 +392,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
