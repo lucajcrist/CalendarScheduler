@@ -35,12 +35,15 @@ def get_credentials():
                     "token_uri": st.secrets["google"]["token_uri"],
                     "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
                     "client_secret": st.secrets["google"]["client_secret"],
-                    "redirect_uris": st.secrets["google"]["redirect_uris"]
+                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"]  # Use out-of-band redirect URI
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            # Use the authorization URL flow instead of local server
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            # Use the authorization URL flow with the correct redirect URI
+            auth_url, _ = flow.authorization_url(
+                prompt='consent',
+                redirect_uri='urn:ietf:wg:oauth:2.0:oob'
+            )
             st.markdown(f'Please go to this URL to authorize the application: {auth_url}')
             code = st.text_input('Enter the authorization code:')
             if code:
@@ -192,3 +195,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
