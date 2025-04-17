@@ -65,24 +65,8 @@ def get_calendar_service():
             return None
         
         try:
-            # Create service with custom HTTP adapter for SSL handling
-            import httplib2
-            import ssl
-            
-            # Create a custom SSL context
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-            
-            # Create HTTP object with custom SSL context
-            http = httplib2.Http(disable_ssl_certificate_validation=True)
-            
-            # Create service with custom HTTP object
-            service = build('calendar', 'v3', credentials=credentials, http=http)
-            
-            # Test the service
-            service.calendars().get(calendarId='primary').execute()
-            
+            # Create service
+            service = build('calendar', 'v3', credentials=credentials)
             return service
         except Exception as e:
             st.error(f"❌ Error building calendar service: {str(e)}")
@@ -273,3 +257,4 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
+
