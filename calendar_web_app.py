@@ -92,13 +92,16 @@ def logout():
     st.session_state.show_tutorial = True
     st.session_state.creds = None
     st.session_state.calendar_id = None
+    st.session_state.service = None
     if os.path.exists('token.json'):
         os.remove('token.json')
     st.rerun()
 
-# Add logout button if authenticated
+# Add subtle logout button in top-right corner if authenticated
 if st.session_state.authenticated:
-    st.sidebar.button("Logout", on_click=logout)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col3:
+        st.button("🔒 Logout", on_click=logout, type="secondary", use_container_width=True)
 
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial and not st.session_state.authenticated:
