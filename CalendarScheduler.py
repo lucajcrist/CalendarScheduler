@@ -364,7 +364,14 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
                 window_start = window_start.replace(minute=(window_start.minute // 5) * 5)
                 window_end = window_end.replace(minute=(window_end.minute // 5) * 5)
                 
-                valid_windows.append((window_start, window_end))
+                # Split large windows into smaller ones if they're too long
+                max_window_duration = timedelta(hours=2)  # Maximum 2-hour window
+                current_start = window_start
+                while current_start < window_end:
+                    current_end = min(current_start + max_window_duration, window_end)
+                    if (current_end - current_start) >= min_duration:
+                        valid_windows.append((current_start, current_end))
+                    current_start = current_end
 
             if valid_windows:
                 free_windows.append((day, tuple(valid_windows)))
@@ -400,3 +407,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
