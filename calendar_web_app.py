@@ -37,13 +37,13 @@ def get_credentials():
                     "token_uri": st.secrets["google"]["token_uri"],
                     "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
                     "client_secret": st.secrets["google"]["client_secret"],
-                    "redirect_uris": ["http://localhost:8501"]
+                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"]
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
             
-            # Use localhost redirect
-            flow.redirect_uri = 'http://localhost:8501'
+            # Use device flow
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
             auth_url, _ = flow.authorization_url(
                 access_type='offline',
                 include_granted_scopes='true',
@@ -57,16 +57,17 @@ def get_credentials():
             3. You may see a warning about the app not being verified - this is normal for testing
             4. Click "Advanced" and then "Go to Calendar Scheduler (unsafe)"
             5. Grant calendar access when prompted
-            6. You will be redirected back to the app automatically
+            6. Copy the authorization code
+            7. Paste it in the text box below
             """)
             
             st.markdown(f'[Click here to authorize]({auth_url})')
             
-            # Wait for the redirect
-            query_params = st.query_params
-            if 'code' in query_params:
+            # Get the authorization code from user input
+            code = st.text_input('Enter the authorization code:')
+            if code:
                 try:
-                    flow.fetch_token(code=query_params['code'][0])
+                    flow.fetch_token(code=code)
                     creds = flow.credentials
                     # Save the credentials for the next run
                     with open('token.pickle', 'wb') as token:
@@ -268,4 +269,3 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
