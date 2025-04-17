@@ -35,20 +35,41 @@ def get_credentials():
                     "token_uri": st.secrets["google"]["token_uri"],
                     "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
                     "client_secret": st.secrets["google"]["client_secret"],
-                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"]  # Use out-of-band redirect URI
+                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"]
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            # Use the authorization URL flow
-            auth_url, _ = flow.authorization_url(prompt='consent')
-            st.markdown(f'Please go to this URL to authorize the application: {auth_url}')
+            
+            # Use device flow
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+            auth_url, _ = flow.authorization_url(
+                access_type='offline',
+                include_granted_scopes='true',
+                prompt='consent'
+            )
+            
+            st.markdown("""
+            ### Authorization Steps:
+            1. Click the link below to open the authorization page
+            2. Sign in with your Google account
+            3. Grant calendar access
+            4. Copy the authorization code
+            5. Paste it in the text box below
+            """)
+            
+            st.markdown(f'[Click here to authorize]({auth_url})')
             code = st.text_input('Enter the authorization code:')
+            
             if code:
-                flow.fetch_token(code=code)
-                creds = flow.credentials
-                # Save the credentials for the next run
-                with open('token.json', 'w') as token:
-                    token.write(creds.to_json())
+                try:
+                    flow.fetch_token(code=code)
+                    creds = flow.credentials
+                    # Save the credentials for the next run
+                    with open('token.json', 'w') as token:
+                        token.write(creds.to_json())
+                except Exception as e:
+                    st.error(f"Error during authentication: {str(e)}")
+                    st.stop()
             else:
                 st.stop()
     return creds
