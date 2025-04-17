@@ -63,7 +63,7 @@ def get_credentials():
             st.markdown(f'[Click here to authorize]({auth_url})')
             
             # Wait for the redirect
-            query_params = st.experimental_get_query_params()
+            query_params = st.query_params
             if 'code' in query_params:
                 try:
                     flow.fetch_token(code=query_params['code'][0])
@@ -268,3 +268,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
