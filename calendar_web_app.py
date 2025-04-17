@@ -211,19 +211,24 @@ timezone_label = st.selectbox("Choose your time zone:", options=[default_tz] + [
 local_tz = pytz.timezone(timezone_label)
 
 # --- Date range selection ---
+st.subheader("Select Date Range")
 col1, col2 = st.columns(2)
 with col1:
-    start_date = st.date_input("Start date:", 
+    start_date = st.date_input("From:", 
                               value=datetime.now().date(),
                               min_value=datetime.now().date(),
                               max_value=datetime.now().date() + timedelta(days=90))
 with col2:
-    end_date = st.date_input("End date:", 
+    end_date = st.date_input("To:", 
                             value=datetime.now().date() + timedelta(days=14),
                             min_value=start_date,
                             max_value=datetime.now().date() + timedelta(days=90))
 
+# Display selected date range
+st.write(f"Showing availability from **{start_date.strftime('%A, %B %d, %Y')}** to **{end_date.strftime('%A, %B %d, %Y')}**")
+
 # --- Work hours ---
+st.subheader("Work Hours")
 col1, col2 = st.columns(2)
 with col1:
     start_time = st.time_input("Workday starts at:", dtime(9, 0))
@@ -231,6 +236,7 @@ with col2:
     end_time = st.time_input("Workday ends at:", dtime(17, 0))
 
 # --- Meeting and buffer preferences ---
+st.subheader("Meeting Preferences")
 min_minutes = st.slider("Minimum meeting length (minutes):", 15, 120, 30, step=5)
 buffer_minutes = st.slider("Buffer before and after events (minutes):", 0, 60, 15, step=5)
 
@@ -253,7 +259,7 @@ if st.button("Find My Free Time"):
             if not free_windows:
                 st.warning("No free time blocks found with the selected settings.")
             else:
-                st.success("✅ Here are your available meeting times:")
+                st.success(f"✅ Available times from {start_date.strftime('%A, %B %d')} to {end_date.strftime('%A, %B %d')}:")
                 # Create a text area with formatted output
                 formatted_output = []
                 for day, blocks in free_windows:
