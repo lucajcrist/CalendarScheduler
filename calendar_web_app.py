@@ -18,8 +18,8 @@ if 'service' not in st.session_state:
     st.session_state.service = None
 if 'calendar_id' not in st.session_state:
     st.session_state.calendar_id = None
-if 'show_tutorial' not in st.session_state:
-    st.session_state.show_tutorial = True
+# Always show tutorial for testing
+st.session_state.show_tutorial = True
 
 # Show tutorial if it's the first time
 if st.session_state.show_tutorial:
