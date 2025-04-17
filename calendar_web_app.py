@@ -11,19 +11,6 @@ import time
 import os
 from google.auth.transport.requests import Request
 
-# Get the absolute path to credentials.json
-CREDENTIALS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'credentials.json')
-
-st.set_page_config(page_title="Calendar Scheduler", layout="centered")
-
-# Initialize session state
-if 'creds' not in st.session_state:
-    st.session_state.creds = None
-if 'calendar_id' not in st.session_state:
-    st.session_state.calendar_id = None
-if 'show_tutorial' not in st.session_state:
-    st.session_state.show_tutorial = True
-
 # OAuth scopes
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
@@ -39,13 +26,34 @@ def get_credentials():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                CREDENTIALS_PATH, SCOPES)
+            # Create credentials from Streamlit secrets
+            client_config = {
+                "installed": {
+                    "client_id": st.secrets["google"]["client_id"],
+                    "project_id": st.secrets["google"]["project_id"],
+                    "auth_uri": st.secrets["google"]["auth_uri"],
+                    "token_uri": st.secrets["google"]["token_uri"],
+                    "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+                    "client_secret": st.secrets["google"]["client_secret"],
+                    "redirect_uris": st.secrets["google"]["redirect_uris"]
+                }
+            }
+            flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
     return creds
+
+st.set_page_config(page_title="Calendar Scheduler", layout="centered")
+
+# Initialize session state
+if 'creds' not in st.session_state:
+    st.session_state.creds = None
+if 'calendar_id' not in st.session_state:
+    st.session_state.calendar_id = None
+if 'show_tutorial' not in st.session_state:
+    st.session_state.show_tutorial = True
 
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial:
@@ -176,3 +184,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
