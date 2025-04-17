@@ -41,13 +41,18 @@ def get_credentials():
     flow = InstalledAppFlow.from_client_config(
         client_config,
         SCOPES,
-        redirect_uri='http://localhost:8501'
+        redirect_uri='urn:ietf:wg:oauth:2.0:oob'
     )
     
     # Get credentials
     try:
-        st.session_state.creds = flow.run_local_server(port=8501)
-        return st.session_state.creds
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        st.markdown(f'Please go to this URL to authorize the application: {auth_url}')
+        code = st.text_input('Enter the authorization code:')
+        if code:
+            flow.fetch_token(code=code)
+            st.session_state.creds = flow.credentials
+            return st.session_state.creds
     except Exception as e:
         st.error(f"❌ Error during authentication: {str(e)}")
         return None
