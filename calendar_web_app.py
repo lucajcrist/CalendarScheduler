@@ -20,8 +20,8 @@ if 'calendar_id' not in st.session_state:
 if 'show_tutorial' not in st.session_state:
     st.session_state.show_tutorial = True
 
-# Add tutorial button in the sidebar
-if st.sidebar.button("📚 Show Tutorial"):
+# Add subtle tutorial button
+if st.button("Show Setup Instructions", type="secondary"):
     st.session_state.show_tutorial = True
     st.rerun()
 
@@ -191,3 +191,4 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
+
