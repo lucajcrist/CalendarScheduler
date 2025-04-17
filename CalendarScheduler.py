@@ -192,29 +192,48 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
         # Filter busy blocks for this day
         day_busy_blocks = [(s, e) for s, e in busy_blocks if s.date() == day or e.date() == day]
         
-        for b_start, b_end in day_busy_blocks:
-            if b_end <= start or b_start >= end:
-                continue
-            b_start = max(b_start, start)
-            b_end = min(b_end, end)
-            if b_start > current:
+        # If no busy blocks for the day, add the entire workday as a free window
+        if not day_busy_blocks:
+            if (end - start) >= min_duration:
+                day_windows.append((start, end))
+        else:
+            for b_start, b_end in day_busy_blocks:
+                if b_end <= start or b_start >= end:
+                    continue
+                b_start = max(b_start, start)
+                b_end = min(b_end, end)
+                if b_start > current:
+                    free_start = current
+                    free_end = b_start
+                    if (free_end - free_start) >= min_duration:
+                        day_windows.append((free_start, free_end))
+                current = max(current, b_end)
+
+            if current < end:
                 free_start = current
-                free_end = b_start
+                free_end = end
                 if (free_end - free_start) >= min_duration:
                     day_windows.append((free_start, free_end))
-            current = max(current, b_end)
 
-        if current < end:
-            free_start = current
-            free_end = end
-            if (free_end - free_start) >= min_duration:
-                day_windows.append((free_start, free_end))
+        # Filter out any invalid windows
+        valid_windows = []
+        for window_start, window_end in day_windows:
+            # Skip zero-duration windows
+            if window_start == window_end:
+                continue
+            # Skip windows that are too short
+            if (window_end - window_start) < min_duration:
+                continue
+            # Skip windows that are outside work hours
+            if window_start.time() < work_start or window_end.time() > work_end:
+                continue
+            valid_windows.append((window_start, window_end))
 
-        if day_windows:
-            free_windows.append((day, tuple(day_windows)))  # Convert day_windows to tuple
+        if valid_windows:
+            free_windows.append((day, tuple(valid_windows)))
 
     print(f"⏱️ find_free_windows took: {time.time() - start_time:.2f} seconds")
-    return tuple(free_windows)  # Convert list to tuple for caching
+    return tuple(free_windows)
 
 # --- Format date and time strings ---
 def format_date(date_obj):
@@ -244,3 +263,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
