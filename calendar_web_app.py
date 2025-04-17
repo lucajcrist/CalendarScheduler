@@ -83,15 +83,17 @@ if 'calendar_id' not in st.session_state:
     st.session_state.calendar_id = None
 if 'show_tutorial' not in st.session_state:
     st.session_state.show_tutorial = True
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
 # Add subtle tutorial button (only show when tutorial is not visible)
-if not st.session_state.show_tutorial:
+if not st.session_state.show_tutorial and not st.session_state.authenticated:
     if st.button("Show Setup Instructions", type="secondary"):
         st.session_state.show_tutorial = True
         st.rerun()
 
-# Show tutorial if it's the first time
-if st.session_state.show_tutorial:
+# Show tutorial if it's the first time and not authenticated
+if st.session_state.show_tutorial and not st.session_state.authenticated:
     st.markdown("""
     ## Welcome to Calendar Scheduler
     
@@ -111,10 +113,14 @@ if st.session_state.show_tutorial:
     if st.button("Sign in with Google"):
         try:
             creds = get_credentials()
-            service = build('calendar', 'v3', credentials=creds)
-            st.session_state['service'] = service
-            st.session_state['calendar_id'] = 'primary'  # Use primary calendar
-            st.success("Successfully connected to your calendar!")
+            if creds:
+                service = build('calendar', 'v3', credentials=creds)
+                st.session_state['service'] = service
+                st.session_state['calendar_id'] = 'primary'  # Use primary calendar
+                st.session_state.authenticated = True
+                st.session_state.show_tutorial = False
+                st.success("Successfully connected to your calendar!")
+                st.rerun()
         except Exception as e:
             st.error(f"Error connecting to Google Calendar: {str(e)}")
     st.stop()
