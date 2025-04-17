@@ -173,13 +173,16 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
                     if st.session_state.user_id:
                         delete_credentials(st.session_state.user_id)
                     
+                    # Fetch the token
                     flow.fetch_token(code=code)
                     creds = flow.credentials
                     
-                    # Get user's email from the credentials
-                    service = build('oauth2', 'v2', credentials=creds)
-                    user_info = service.userinfo().get().execute()
-                    user_email = user_info['email']
+                    # Initialize the calendar service first
+                    calendar_service = build('calendar', 'v3', credentials=creds)
+                    
+                    # Get the primary calendar to verify access
+                    calendar = calendar_service.calendars().get(calendarId='primary').execute()
+                    user_email = calendar['id']  # The calendar ID is the user's email
                     user_id = get_user_id(user_email)
                     
                     # Save credentials for this user
@@ -191,7 +194,7 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
                     st.session_state.creds = creds
                     st.session_state.authenticated = True
                     st.session_state.show_tutorial = False
-                    st.session_state.service = build('calendar', 'v3', credentials=creds)
+                    st.session_state.service = calendar_service
                     st.session_state.calendar_id = 'primary'
                     st.success(f"Successfully connected to {user_email}'s calendar!")
                     st.rerun()
@@ -357,5 +360,6 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
 
 
