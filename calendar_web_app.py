@@ -86,6 +86,20 @@ if 'show_tutorial' not in st.session_state:
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
+def logout():
+    """Clear authentication state and credentials."""
+    st.session_state.authenticated = False
+    st.session_state.show_tutorial = True
+    st.session_state.creds = None
+    st.session_state.calendar_id = None
+    if os.path.exists('token.json'):
+        os.remove('token.json')
+    st.rerun()
+
+# Add logout button if authenticated
+if st.session_state.authenticated:
+    st.sidebar.button("Logout", on_click=logout)
+
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial and not st.session_state.authenticated:
     if st.button("Show Setup Instructions", type="secondary"):
@@ -219,4 +233,3 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
-
