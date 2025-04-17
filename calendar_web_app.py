@@ -10,6 +10,7 @@ import json
 import time
 import os
 from google.auth.transport.requests import Request
+import pickle
 
 # OAuth scopes
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -17,10 +18,11 @@ SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 def get_credentials():
     """Gets valid user credentials from storage or initiates OAuth flow."""
     creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
+    # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -35,13 +37,13 @@ def get_credentials():
                     "token_uri": st.secrets["google"]["token_uri"],
                     "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
                     "client_secret": st.secrets["google"]["client_secret"],
-                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"]
+                    "redirect_uris": ["http://localhost:8501"]
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
             
-            # Use device flow
-            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+            # Use localhost redirect
+            flow.redirect_uri = 'http://localhost:8501'
             auth_url, _ = flow.authorization_url(
                 access_type='offline',
                 include_granted_scopes='true',
@@ -53,20 +55,20 @@ def get_credentials():
             1. Click the link below to open the authorization page
             2. Sign in with your Google account
             3. Grant calendar access
-            4. Copy the authorization code
-            5. Paste it in the text box below
+            4. You will be redirected back to the app automatically
             """)
             
             st.markdown(f'[Click here to authorize]({auth_url})')
-            code = st.text_input('Enter the authorization code:')
             
-            if code:
+            # Wait for the redirect
+            query_params = st.experimental_get_query_params()
+            if 'code' in query_params:
                 try:
-                    flow.fetch_token(code=code)
+                    flow.fetch_token(code=query_params['code'][0])
                     creds = flow.credentials
                     # Save the credentials for the next run
-                    with open('token.json', 'w') as token:
-                        token.write(creds.to_json())
+                    with open('token.pickle', 'wb') as token:
+                        pickle.dump(creds, token)
                     return creds
                 except Exception as e:
                     st.error(f"Error during authentication: {str(e)}")
@@ -99,8 +101,8 @@ def logout():
     st.session_state.calendar_id = None
     st.session_state.service = None
     st.session_state.trigger_rerun = True
-    if os.path.exists('token.json'):
-        os.remove('token.json')
+    if os.path.exists('token.pickle'):
+        os.remove('token.pickle')
 
 # Check if we need to rerun after logout
 if st.session_state.get('trigger_rerun', False):
@@ -131,8 +133,9 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
     1. Click the "Sign in with Google" button below
     2. Choose your Google account
     3. Grant calendar access when prompted
-    4. Enter your work hours and preferences
-    5. Click "Find My Free Time" to see your availability
+    4. You will be redirected back to the app automatically
+    5. Enter your work hours and preferences
+    6. Click "Find My Free Time" to see your availability
     
     That's it! No complex setup required.
     """)
@@ -144,8 +147,7 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
                 st.session_state.creds = creds
                 st.session_state.authenticated = True
                 st.session_state.show_tutorial = False
-                service = build('calendar', 'v3', credentials=creds)
-                st.session_state.service = service
+                st.session_state.service = build('calendar', 'v3', credentials=creds)
                 st.session_state.calendar_id = 'primary'
                 st.success("Successfully connected to your calendar!")
                 st.rerun()
@@ -256,3 +258,4 @@ if st.button("Find My Free Time"):
             if st.button("Show Setup Instructions Again"):
                 st.session_state.show_tutorial = True
                 st.rerun()
+
