@@ -3,13 +3,11 @@ from datetime import time as dtime, timedelta
 from CalendarScheduler import get_busy_times, find_free_windows
 from dateutil import tz
 import pytz
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import json
 import time
 import os
-from google.oauth2 import service_account
 
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 st.title("📅 Personal Calendar Availability Checker")
@@ -24,15 +22,15 @@ def get_calendar_service():
     try:
         # Get credentials from Streamlit secrets
         credentials_dict = {
-            "type": "service_account",
+            "type": st.secrets["google"]["type"],
             "project_id": st.secrets["google"]["project_id"],
             "private_key_id": st.secrets["google"]["private_key_id"],
             "private_key": st.secrets["google"]["private_key"],
             "client_email": st.secrets["google"]["client_email"],
             "client_id": st.secrets["google"]["client_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "auth_uri": st.secrets["google"]["auth_uri"],
+            "token_uri": st.secrets["google"]["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
             "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"]
         }
         
@@ -106,5 +104,4 @@ if st.session_state.service:
                 st.error(f"An error occurred: {e}")
 else:
     st.error("Calendar service not initialized. Please check your credentials.")
-
 
