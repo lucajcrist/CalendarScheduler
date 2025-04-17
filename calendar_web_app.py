@@ -67,6 +67,16 @@ def get_credentials():
                     # Save the credentials for the next run
                     with open('token.json', 'w') as token:
                         token.write(creds.to_json())
+                    # Set authenticated state immediately
+                    st.session_state.authenticated = True
+                    st.session_state.show_tutorial = False
+                    # Build service and store in session state
+                    service = build('calendar', 'v3', credentials=creds)
+                    st.session_state.service = service
+                    st.session_state.calendar_id = 'primary'
+                    st.success("Successfully connected to your calendar!")
+                    # Trigger rerun to show main interface
+                    st.session_state.trigger_rerun = True
                 except Exception as e:
                     st.error(f"Error during authentication: {str(e)}")
                     st.stop()
@@ -85,6 +95,10 @@ if 'show_tutorial' not in st.session_state:
     st.session_state.show_tutorial = True
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+if 'service' not in st.session_state:
+    st.session_state.service = None
+if 'trigger_rerun' not in st.session_state:
+    st.session_state.trigger_rerun = False
 
 def logout():
     """Clear authentication state and credentials."""
@@ -93,20 +107,20 @@ def logout():
     st.session_state.creds = None
     st.session_state.calendar_id = None
     st.session_state.service = None
-    st.session_state.trigger_rerun = True  # Add flag to trigger rerun
+    st.session_state.trigger_rerun = True
     if os.path.exists('token.json'):
         os.remove('token.json')
+
+# Check if we need to rerun after logout
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    st.rerun()
 
 # Add subtle logout button in top-right corner if authenticated
 if st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col3:
         st.button("🔒 Logout", on_click=logout, type="secondary", use_container_width=True)
-
-# Check if we need to rerun after logout
-if st.session_state.get('trigger_rerun', False):
-    st.session_state.trigger_rerun = False
-    st.rerun()
 
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial and not st.session_state.authenticated:
@@ -136,12 +150,7 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
         try:
             creds = get_credentials()
             if creds:
-                service = build('calendar', 'v3', credentials=creds)
-                st.session_state['service'] = service
-                st.session_state['calendar_id'] = 'primary'  # Use primary calendar
-                st.session_state.authenticated = True
-                st.session_state.show_tutorial = False
-                st.success("Successfully connected to your calendar!")
+                st.session_state.creds = creds
                 st.rerun()
         except Exception as e:
             st.error(f"Error connecting to Google Calendar: {str(e)}")
@@ -159,13 +168,15 @@ if not creds:
         st.rerun()
     st.stop()
 
-# Build service
-service = build('calendar', 'v3', credentials=creds)
+# Build service if not already in session state
+if not st.session_state.service:
+    service = build('calendar', 'v3', credentials=creds)
+    st.session_state.service = service
+    st.session_state.calendar_id = 'primary'
 
 # Get user's primary calendar
 try:
-    calendar = service.calendars().get(calendarId='primary').execute()
-    st.session_state.calendar_id = 'primary'
+    calendar = st.session_state.service.calendars().get(calendarId='primary').execute()
     st.write(f"✅ Connected to your calendar: {calendar['summary']}")
 except Exception as e:
     st.error(f"❌ Could not access your calendar: {str(e)}")
