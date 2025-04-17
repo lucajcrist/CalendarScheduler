@@ -20,10 +20,11 @@ if 'calendar_id' not in st.session_state:
 if 'show_tutorial' not in st.session_state:
     st.session_state.show_tutorial = True
 
-# Add subtle tutorial button
-if st.button("Show Setup Instructions", type="secondary"):
-    st.session_state.show_tutorial = True
-    st.rerun()
+# Add subtle tutorial button (only show when tutorial is not visible)
+if not st.session_state.show_tutorial:
+    if st.button("Show Setup Instructions", type="secondary"):
+        st.session_state.show_tutorial = True
+        st.rerun()
 
 # Show tutorial if it's the first time
 if st.session_state.show_tutorial:
@@ -75,28 +76,6 @@ if st.session_state.show_tutorial:
     Once you've completed these steps, you can start using the app to find your available meeting times!
     """.format(service_account_email=st.secrets["google"]["client_email"]))
     
-    # Get calendar ID if not set
-    if st.session_state.service is not None and not st.session_state.calendar_id:
-        st.write("Please enter your calendar ID:")
-        st.info("""
-        Your calendar ID is usually your email address. You can also find it by:
-        1. Going to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
-        2. Clicking on your calendar under "Settings for my calendars"
-        3. Looking for "Calendar ID" in the "Integrate calendar" section
-        """)
-        user_calendar_id = st.text_input("Calendar ID")
-        
-        if user_calendar_id:
-            try:
-                calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
-                st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
-                st.session_state.calendar_id = user_calendar_id
-                st.session_state.show_tutorial = False
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Could not access your calendar: {str(e)}")
-                st.info("Make sure you've shared your calendar with the service account.")
-    
     if st.button("I've completed the setup"):
         st.session_state.show_tutorial = False
         st.rerun()
@@ -104,6 +83,27 @@ if st.session_state.show_tutorial:
 
 # Main app interface
 st.title("📅 Personal Calendar Availability Checker")
+
+# Always show calendar ID input
+if st.session_state.service is not None:
+    st.write("Enter or update your calendar ID:")
+    st.info("""
+    Your calendar ID is usually your email address. You can also find it by:
+    1. Going to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
+    2. Clicking on your calendar under "Settings for my calendars"
+    3. Looking for "Calendar ID" in the "Integrate calendar" section
+    """)
+    user_calendar_id = st.text_input("Calendar ID", value=st.session_state.calendar_id or "")
+    
+    if user_calendar_id and user_calendar_id != st.session_state.calendar_id:
+        try:
+            calendar = st.session_state.service.calendars().get(calendarId=user_calendar_id).execute()
+            st.write(f"✅ Successfully connected to calendar: {calendar['summary']}")
+            st.session_state.calendar_id = user_calendar_id
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Could not access your calendar: {str(e)}")
+            st.info("Make sure you've shared your calendar with the service account.")
 
 # Cache timezone list
 @st.cache_data
@@ -191,4 +191,3 @@ else:
         st.error("Calendar service not initialized. Please check your credentials.")
     else:
         st.info("Please enter your calendar ID above to continue.")
-
