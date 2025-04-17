@@ -160,11 +160,10 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                             # Format times in lowercase with 'am/pm'
                             start_str = start.strftime('%-I:%M%p').lower()
                             end_str = end.strftime('%-I:%M%p').lower()
-                            time_blocks.append(f"• {start_str} to {end_str}")
+                            time_blocks.append(f"{start_str} to {end_str}")
                         
                         # Join date and times
-                        formatted_output.append(date_str + ":")
-                        formatted_output.extend(time_blocks)
+                        formatted_output.append(f"• {date_str}: {', '.join(time_blocks)}")
                         formatted_output.append("")  # Add blank line between days
                     
                     # Join with newlines and display in a text area
