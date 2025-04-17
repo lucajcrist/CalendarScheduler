@@ -305,10 +305,15 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
             # Sort busy blocks by start time
             day_busy_blocks.sort(key=lambda x: x[0])
             
-            # If no busy blocks for the day, add the entire workday as a free window
+            # If no busy blocks for the day, add the entire workday as free windows
             if not day_busy_blocks:
-                if (end - start) >= min_duration:
-                    day_windows.append((start, end))
+                # Split the workday into 1-hour chunks
+                current_start = start
+                while current_start < end:
+                    current_end = min(current_start + timedelta(hours=1), end)
+                    if (current_end - current_start) >= min_duration:
+                        day_windows.append((current_start, current_end))
+                    current_start = current_end
             else:
                 # Process each busy block
                 for b_start, b_end in day_busy_blocks:
@@ -324,9 +329,13 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
                     if b_start > current:
                         free_start = current
                         free_end = b_start
-                        # Only add if it's long enough and within work hours
-                        if (free_end - free_start) >= min_duration:
-                            day_windows.append((free_start, free_end))
+                        # Split the free time into 1-hour chunks
+                        current_free_start = free_start
+                        while current_free_start < free_end:
+                            current_free_end = min(current_free_start + timedelta(hours=1), free_end)
+                            if (current_free_end - current_free_start) >= min_duration:
+                                day_windows.append((current_free_start, current_free_end))
+                            current_free_start = current_free_end
                     
                     current = max(current, b_end)
 
@@ -334,8 +343,13 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
                 if current < end:
                     free_start = current
                     free_end = end
-                    if (free_end - free_start) >= min_duration:
-                        day_windows.append((free_start, free_end))
+                    # Split the remaining free time into 1-hour chunks
+                    current_free_start = free_start
+                    while current_free_start < free_end:
+                        current_free_end = min(current_free_start + timedelta(hours=1), free_end)
+                        if (current_free_end - current_free_start) >= min_duration:
+                            day_windows.append((current_free_start, current_free_end))
+                        current_free_start = current_free_end
 
             # Filter out any invalid windows
             valid_windows = []
@@ -364,14 +378,7 @@ def find_free_windows(busy_blocks, local_tz, work_start, work_end, min_minutes):
                 window_start = window_start.replace(minute=(window_start.minute // 5) * 5)
                 window_end = window_end.replace(minute=(window_end.minute // 5) * 5)
                 
-                # Split large windows into smaller ones if they're too long
-                max_window_duration = timedelta(hours=2)  # Maximum 2-hour window
-                current_start = window_start
-                while current_start < window_end:
-                    current_end = min(current_start + max_window_duration, window_end)
-                    if (current_end - current_start) >= min_duration:
-                        valid_windows.append((current_start, current_end))
-                    current_start = current_end
+                valid_windows.append((window_start, window_end))
 
             if valid_windows:
                 free_windows.append((day, tuple(valid_windows)))
