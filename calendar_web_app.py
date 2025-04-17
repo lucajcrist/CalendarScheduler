@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import time as dtime, timedelta
+from datetime import time as dtime, timedelta, datetime
 from CalendarScheduler import get_busy_times, find_free_windows
 from dateutil import tz
 import pytz
@@ -210,6 +210,19 @@ default_tz = "US/Eastern"
 timezone_label = st.selectbox("Choose your time zone:", options=[default_tz] + [tz for tz in timezones if tz != default_tz])
 local_tz = pytz.timezone(timezone_label)
 
+# --- Date range selection ---
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("Start date:", 
+                              value=datetime.now().date(),
+                              min_value=datetime.now().date(),
+                              max_value=datetime.now().date() + timedelta(days=90))
+with col2:
+    end_date = st.date_input("End date:", 
+                            value=datetime.now().date() + timedelta(days=14),
+                            min_value=start_date,
+                            max_value=datetime.now().date() + timedelta(days=90))
+
 # --- Work hours ---
 col1, col2 = st.columns(2)
 with col1:
@@ -227,8 +240,9 @@ if st.button("Find My Free Time"):
         try:
             total_start = time.time()
             
-            # Get busy times for both weeks
-            busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, show_next_week=True)
+            # Get busy times for the selected date range
+            busy_blocks = get_busy_times(st.session_state.service, st.session_state.calendar_id, local_tz, buffer_minutes, 
+                                       start_date=start_date, end_date=end_date)
             
             if len(busy_blocks) == 0:
                 st.warning("No busy blocks found. Make sure you have events in your calendar.")
@@ -243,10 +257,12 @@ if st.button("Find My Free Time"):
                 # Create a text area with formatted output
                 formatted_output = []
                 for day, blocks in free_windows:
-                    # Format date with ordinal (e.g., 16th)
+                    # Format date with weekday and ordinal (e.g., Friday, April 18th)
+                    weekday = day.strftime('%A')
+                    month = day.strftime('%B')
                     day_num = day.day
                     suffix = 'th' if 11 <= day_num <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day_num % 10, 'th')
-                    date_str = f"{day.strftime('%B %d')}{suffix}"
+                    date_str = f"{weekday}, {month} {day_num}{suffix}"
                     
                     # Format time blocks
                     time_blocks = []
