@@ -67,16 +67,7 @@ def get_credentials():
                     # Save the credentials for the next run
                     with open('token.json', 'w') as token:
                         token.write(creds.to_json())
-                    # Set authenticated state immediately
-                    st.session_state.authenticated = True
-                    st.session_state.show_tutorial = False
-                    # Build service and store in session state
-                    service = build('calendar', 'v3', credentials=creds)
-                    st.session_state.service = service
-                    st.session_state.calendar_id = 'primary'
-                    st.success("Successfully connected to your calendar!")
-                    # Trigger rerun to show main interface
-                    st.session_state.trigger_rerun = True
+                    return creds
                 except Exception as e:
                     st.error(f"Error during authentication: {str(e)}")
                     st.stop()
@@ -151,6 +142,12 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
             creds = get_credentials()
             if creds:
                 st.session_state.creds = creds
+                st.session_state.authenticated = True
+                st.session_state.show_tutorial = False
+                service = build('calendar', 'v3', credentials=creds)
+                st.session_state.service = service
+                st.session_state.calendar_id = 'primary'
+                st.success("Successfully connected to your calendar!")
                 st.rerun()
         except Exception as e:
             st.error(f"Error connecting to Google Calendar: {str(e)}")
@@ -160,19 +157,21 @@ if st.session_state.show_tutorial and not st.session_state.authenticated:
 st.title("📅 Personal Calendar Availability Checker")
 
 # Get credentials
-creds = get_credentials()
-if not creds:
-    st.error("Please sign in with Google to continue.")
-    if st.button("Show Setup Instructions Again"):
-        st.session_state.show_tutorial = True
+if not st.session_state.authenticated:
+    creds = get_credentials()
+    if creds:
+        st.session_state.creds = creds
+        st.session_state.authenticated = True
+        service = build('calendar', 'v3', credentials=creds)
+        st.session_state.service = service
+        st.session_state.calendar_id = 'primary'
         st.rerun()
-    st.stop()
-
-# Build service if not already in session state
-if not st.session_state.service:
-    service = build('calendar', 'v3', credentials=creds)
-    st.session_state.service = service
-    st.session_state.calendar_id = 'primary'
+    else:
+        st.error("Please sign in with Google to continue.")
+        if st.button("Show Setup Instructions Again"):
+            st.session_state.show_tutorial = True
+            st.rerun()
+        st.stop()
 
 # Get user's primary calendar
 try:
