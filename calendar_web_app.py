@@ -18,6 +18,52 @@ if 'service' not in st.session_state:
     st.session_state.service = None
 if 'calendar_id' not in st.session_state:
     st.session_state.calendar_id = None
+if 'show_tutorial' not in st.session_state:
+    st.session_state.show_tutorial = True
+
+# Show tutorial if it's the first time
+if st.session_state.show_tutorial:
+    st.markdown("""
+    ## Welcome to Calendar Scheduler
+    
+    This app helps you share your available meeting times with others. Before you can use it, you need to share your calendar with our service account.
+    
+    ### Step-by-Step Setup Guide
+    
+    1. **Open Google Calendar**
+       - Go to [calendar.google.com](https://calendar.google.com)
+       - Make sure you're signed in with the account you want to share
+    
+    2. **Share Your Calendar**
+       - On the left side, find your calendar under "My calendars"
+       - Click the three dots (⋮) next to your calendar
+       - Select "Settings and sharing"
+    
+    3. **Add the Service Account**
+       - Scroll down to "Share with specific people"
+       - Click "Add people"
+       - Enter this email address:
+       ```
+       {service_account_email}
+       ```
+       - Set the permission to "See all event details"
+       - Click "Send"
+    
+    4. **Verify the Sharing**
+       - Wait a few moments for the sharing to take effect
+       - The service account will now be able to read your calendar
+    
+    5. **Enter Your Calendar ID**
+       - Your calendar ID is usually your email address
+       - Enter it in the field below and click "Connect"
+    
+    Once you've completed these steps, you can start using the app to find your available meeting times!
+    """.format(service_account_email=st.secrets["google"]["client_email"]))
+    
+    if st.button("I've completed the setup"):
+        st.session_state.show_tutorial = False
+        st.rerun()
+    st.stop()
 
 # Cache the service object
 @st.cache_resource
@@ -100,6 +146,9 @@ if st.session_state.service is not None and not st.session_state.calendar_id:
         except Exception as e:
             st.error(f"❌ Could not access your calendar: {str(e)}")
             st.info("Make sure you've shared your calendar with the service account.")
+            if st.button("Show Setup Instructions Again"):
+                st.session_state.show_tutorial = True
+                st.rerun()
 
 # Cache timezone list
 @st.cache_data
@@ -141,6 +190,9 @@ if st.session_state.service is not None and st.session_state.calendar_id:
                     st.write("1. Your calendar is shared with the service account")
                     st.write("2. You have events in your calendar")
                     st.write("3. The service account has proper permissions")
+                    if st.button("Show Setup Instructions Again"):
+                        st.session_state.show_tutorial = True
+                        st.rerun()
                 
                 # Find free windows
                 free_windows = find_free_windows(busy_blocks, local_tz, start_time, end_time, min_minutes)
@@ -176,6 +228,9 @@ if st.session_state.service is not None and st.session_state.calendar_id:
             except Exception as e:
                 st.error(f"An error occurred: {e}")
                 st.error("Make sure you've shared your calendar with the service account email: " + st.secrets["google"]["client_email"])
+                if st.button("Show Setup Instructions Again"):
+                    st.session_state.show_tutorial = True
+                    st.rerun()
 else:
     if st.session_state.service is None:
         st.error("Calendar service not initialized. Please check your credentials.")
