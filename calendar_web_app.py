@@ -46,16 +46,27 @@ if st.session_state.show_tutorial:
        ```
        {service_account_email}
        ```
-       - Set the permission to "See all event details"
+       - Choose your preferred permission level:
+         - "See all event details" - Shows event titles and details
+         - "See only free/busy" - Only shows when you're busy, not what you're doing
+       - Both options work equally well for finding your available times
        - Click "Send"
     
     4. **Verify the Sharing**
        - Wait a few moments for the sharing to take effect
        - The service account will now be able to read your calendar
     
-    5. **Enter Your Calendar ID**
+    5. **Find Your Calendar ID**
        - Your calendar ID is usually your email address
-       - Enter it in the field below and click "Connect"
+       - You can also find it in your calendar settings:
+         1. Go to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
+         2. Click on your calendar under "Settings for my calendars"
+         3. Look for "Calendar ID" in the "Integrate calendar" section
+       - For most users, it's simply your email address
+    
+    6. **Enter Your Calendar ID**
+       - Enter your calendar ID in the field below
+       - Click "Connect" to verify the connection
     
     Once you've completed these steps, you can start using the app to find your available meeting times!
     """.format(service_account_email=st.secrets["google"]["client_email"]))
@@ -134,7 +145,13 @@ if st.session_state.service is None:
 
 # Get calendar ID if not set
 if st.session_state.service is not None and not st.session_state.calendar_id:
-    st.write("Please enter your calendar ID (usually your email address):")
+    st.write("Please enter your calendar ID:")
+    st.info("""
+    Your calendar ID is usually your email address. You can also find it by:
+    1. Going to [Google Calendar Settings](https://calendar.google.com/calendar/r/settings)
+    2. Clicking on your calendar under "Settings for my calendars"
+    3. Looking for "Calendar ID" in the "Integrate calendar" section
+    """)
     user_calendar_id = st.text_input("Calendar ID")
     
     if user_calendar_id:
