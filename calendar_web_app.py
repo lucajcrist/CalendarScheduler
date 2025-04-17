@@ -11,6 +11,9 @@ import time
 import os
 from google.auth.transport.requests import Request
 
+# Get the absolute path to credentials.json
+CREDENTIALS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'credentials.json')
+
 st.set_page_config(page_title="Calendar Scheduler", layout="centered")
 
 # Initialize session state
@@ -37,7 +40,7 @@ def get_credentials():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                CREDENTIALS_PATH, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open('token.json', 'w') as token:
