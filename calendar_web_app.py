@@ -93,15 +93,20 @@ def logout():
     st.session_state.creds = None
     st.session_state.calendar_id = None
     st.session_state.service = None
+    st.session_state.trigger_rerun = True  # Add flag to trigger rerun
     if os.path.exists('token.json'):
         os.remove('token.json')
-    st.rerun()
 
 # Add subtle logout button in top-right corner if authenticated
 if st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col3:
         st.button("🔒 Logout", on_click=logout, type="secondary", use_container_width=True)
+
+# Check if we need to rerun after logout
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    st.rerun()
 
 # Add subtle tutorial button (only show when tutorial is not visible)
 if not st.session_state.show_tutorial and not st.session_state.authenticated:
