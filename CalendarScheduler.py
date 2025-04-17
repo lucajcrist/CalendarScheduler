@@ -79,43 +79,37 @@ def get_user_preferences():
 
 # Cache the busy times results
 @functools.lru_cache(maxsize=2)  # Increased cache size to handle both this week and next week
-def get_busy_times(service, calendar_id, local_tz, buffer_minutes, show_next_week=False):
+def get_busy_times(service, calendar_id, local_tz, buffer_minutes, start_date=None, end_date=None):
     start_time = time.time()
     now = datetime.now(local_tz)
     
-    # Calculate start and end of this week
-    this_week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    this_week_end = this_week_start + timedelta(days=7)
-    
-    # Calculate start and end of next week
-    days_until_next_monday = (7 - now.weekday()) % 7
-    if days_until_next_monday == 0:  # If today is Monday, add 7 days
-        days_until_next_monday = 7
-    next_week_start = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-    next_week_end = next_week_start + timedelta(days=7)
-
-    print(f"Local timezone: {local_tz}")
-    print(f"Current time in local timezone: {now}")
-    
-    if show_next_week:
-        print(f"Getting both this week and next week's events")
-        print(f"This week start: {this_week_start}")
-        print(f"This week end: {this_week_end}")
-        print(f"Next week start: {next_week_start}")
-        print(f"Next week end: {next_week_end}")
+    # Use provided date range or default to this week and next week
+    if start_date is None:
+        # Calculate start and end of this week
+        this_week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        this_week_end = this_week_start + timedelta(days=7)
+        
+        # Calculate start and end of next week
+        days_until_next_monday = (7 - now.weekday()) % 7
+        if days_until_next_monday == 0:  # If today is Monday, add 7 days
+            days_until_next_monday = 7
+        next_week_start = (now + timedelta(days=days_until_next_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        next_week_end = next_week_start + timedelta(days=7)
         
         # Convert to UTC for API call
         start_utc = this_week_start.astimezone(tz.UTC)
         end_utc = next_week_end.astimezone(tz.UTC)
     else:
-        print(f"Getting this week's events only")
-        print(f"This week start: {this_week_start}")
-        print(f"This week end: {this_week_end}")
+        # Use provided date range
+        start_dt = datetime.combine(start_date, time(0, 0), tzinfo=local_tz)
+        end_dt = datetime.combine(end_date, time(23, 59, 59), tzinfo=local_tz)
         
         # Convert to UTC for API call
-        start_utc = this_week_start.astimezone(tz.UTC)
-        end_utc = this_week_end.astimezone(tz.UTC)
+        start_utc = start_dt.astimezone(tz.UTC)
+        end_utc = end_dt.astimezone(tz.UTC)
 
+    print(f"Local timezone: {local_tz}")
+    print(f"Current time in local timezone: {now}")
     print(f"API call time range:")
     print(f"Start in UTC: {start_utc}")
     print(f"End in UTC: {end_utc}")
@@ -392,3 +386,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
